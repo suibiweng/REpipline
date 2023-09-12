@@ -15,6 +15,7 @@ import keyboard
 import sys
 
 
+
 FileUploadCmd = r"python C:\Users\someo\Desktop\RealityEditor\PythonProject\gcpstorege\sftpupload.py"
 GenerateModelwithPromptCMD = r'python C:\Users\someo\Desktop\RealityEditor\PythonProject/threestudio\launch.py --config C:\Users\someo\Desktop\RealityEditor\PythonProject\threestudio\configs\dreamfusion-sd.yaml --train --gpu 0 system.prompt_processor.prompt='
 
@@ -23,6 +24,11 @@ procesingisRunning = False
 isInturupt=True
 runingMethod = 0
 argsarray = []
+
+
+
+
+
 
 
 

@@ -8,24 +8,104 @@ import threading
 import paramiko
 import shutil
 # import packages
-from google.cloud import storage
-
+import pymeshlab
 #分享資料
 import datetime
 import sys
+from pythonosc.udp_client import SimpleUDPClient
 # 上傳檔名 /位置/
 
 theProjectPath=""
-ckptPath=r"/ckpt/last.ckpt"
+ckptPath=""
 yamalpath=""
 stage=0
 PngFilePath=None
 lastfile=None
+getSavePath=False
+
+
+
+
 private_key_path = '/path/to/your/private/key.pem'
 server_ip = '34.106.250.143'
 server_port = 22
 server_username = 'suibidata2023'
 local_file_path = '/path/to/your/local/directory/'  # Replace with your local file path
+
+
+def init():
+    
+    global theProjectPath,ckptPath,yamalpath,stage,PngFilePath,lastfile,getSavePath
+    time.sleep(5)
+    theProjectPath=""
+    ckptPath=""
+    yamalpath=""
+    stage=0
+    PngFilePath=None
+    lastfile=None
+    getSavePath=False
+    
+    
+    
+    
+    
+    
+
+
+
+
+
+
+def send_osc_message(ip, port, address, data):
+    try:
+        client = SimpleUDPClient(ip, port)  # Create client
+        client.send_message(address, data)  # Send OSC message
+    except Exception as e:
+        print(f"Error sending OSC message: {e}")
+
+
+def find_single_obj_file(folder_path):
+    """
+    Find and return the full path to the first .obj file found in the specified folder.
+
+    Args:
+        folder_path (str): The path to the folder to search for .obj files.
+
+    Returns:
+        str or None: The full path to the first .obj file found, or None if no .obj file is found.
+    """
+    try:
+        # Get a list of all files in the folder
+        file_list = os.listdir(folder_path)
+
+        # Find the first .obj file (if any)
+        for file in file_list:
+            if file.lower().endswith('.obj'):
+                return os.path.join(folder_path, file)
+    except OSError as e:
+        print(f"Error: {e}")
+
+    return None
+
+
+def save_mesh(loadMeshPath):
+    # lines needed to run this specific example
+    print("ReSave the Mesh")
+   
+    output_path = loadMeshPath
+
+    # create a new MeshSet
+    ms = pymeshlab.MeshSet()
+
+    # load a new mesh
+    ms.load_new_mesh(loadMeshPath)
+    
+    time.sleep(3)
+
+    # save the current mesh with default parameters
+    ms.save_current_mesh(output_path)
+
+
 
 
 
@@ -134,8 +214,6 @@ class LatestFolderHandler(FileSystemEventHandler):
 
 class PNGHandler(FileSystemEventHandler):
     def on_created(self, event):
-        if event.is_directory:
-            return
         # Check if the created file is a PNG file
         if event.src_path.lower().endswith(".png"):
             print( event.src_path.lower())
@@ -144,37 +222,33 @@ class PNGHandler(FileSystemEventHandler):
             upload_file_to_server(previewpic)
             print(f"upload this: {event.src_path.lower()}")
         elif event.src_path.lower().endswith(".mp4"):
-            
             ExportTheModel()
         elif event.is_directory and event.src_path.lower().endswith("export"):
-            zip_folder_contents(event.src_path,",model.zip")
+            save_mesh(find_single_obj_file(event.src_path))
+            Modelurl= zip_folder_contents_and_upload(event.src_path,"model.zip")
             # Handle the case where a folder ending with "export" is created
-            print(f"Folder ending with 'export' created: {event.src_path}")
+            data2 = [0, Modelurl]
+            send_osc_message('127.0.0.1', 1337, "/GenrateModel", data2)
+            init()
             
+            
+        
 
 
 
-class ModelHandler(FileSystemEventHandler):
-    def __init__(self):
-        super().__init__()
-        self.latest_folder = None
-
-    def on_created(self, event):
-        if event.is_directory:
-            folder_path = event.src_path
-            if not self.latest_folder or os.path.getctime(folder_path) > os.path.getctime(self.latest_folder):
-                self.latest_folder = folder_path
-                zip_folder_contents(self.latest_folder,",model.zip")
 
 
-
-def zip_folder_contents(folder_path, output_zip):
+def zip_folder_contents_and_upload(folder_path, output_zip):
+    time.sleep(10)
+    print("ziping the file")
+    
     with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for foldername, subfolders, filenames in os.walk(folder_path):
             for filename in filenames:
                 file_path = os.path.join(foldername, filename)
                 arcname = os.path.relpath(file_path, folder_path)
                 zipf.write(file_path, arcname)
+    return upload_file_to_server(output_zip)
 
 
 
@@ -196,10 +270,10 @@ def ExportTheModel():
     
     time.sleep(3)
     print("export model")
-
-    cmd = f"python launch.py --config {yamalpath} --export --gpu 0 resume={ckptPath} system.exporter_type=mesh-exporter system.exporter.fmt=obj"
+    cmd2= f"python launch.py --config {yamalpath} --export --gpu 0 resume={ckptPath} system.exporter_type=mesh-exporter"
+    cmd1 = f"python launch.py --config {yamalpath} --export --gpu 0 resume={ckptPath} system.exporter_type=mesh-exporter system.exporter.fmt=obj"
     try:
-        proc = subprocess.Popen( cmd, shell=True, cwd='C:\\Users\\someo\\Desktop\\RealityEditor\PythonProject\\threestudio')
+        proc = subprocess.Popen( cmd2, shell=True, cwd='C:\\Users\\someo\\Desktop\\RealityEditor\PythonProject\\threestudio')
        
     except Exception as e:
         print("An error occurred:", str(e))
@@ -259,7 +333,7 @@ def ExportTheModel():
 #         observer.stop()
 #     observer.join()
 
-getSavePath=False
+
 
 def PreViewUploader(folder_to_watch):
     global stage
@@ -358,13 +432,15 @@ def PreViewUploader(folder_to_watch):
 
 
 if __name__ == "__main__":
-    print('')
+    print('process is On!')
 
     folder_to_watch = r"C:\Users\someo\Desktop\RealityEditor\PythonProject\threestudio\outputs\dreamfusion-sd"
     # latest_folder_name = watch_for_latest_folder(folder_to_watch)
 
     PreviewUPdatethread = threading.Thread(target=PreViewUploader, args=(folder_to_watch,))
     PreviewUPdatethread.start()
+    
+    
 
     try:
         while True:
