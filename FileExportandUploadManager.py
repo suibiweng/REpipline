@@ -9,10 +9,14 @@ import paramiko
 import shutil
 # import packages
 import pymeshlab
-#分享資料
+
+
+import keyboard
+
 import datetime
 import sys
 from pythonosc.udp_client import SimpleUDPClient
+import signal
 # 上傳檔名 /位置/
 
 VRip='192.168.0.213'
@@ -29,11 +33,13 @@ server_port = 22
 server_username = 'suibidata2023'
 folder_to_watch = r'D:\Desktop\RealityEditor\PythonProject\threestudio\outputs\dreamfusion-sd'
 threeStudioPath= r'D:\Desktop\RealityEditor\PythonProject\threestudio'
+ThreadFlag =True
 
+stop_event = threading.Event()
 
 def init():
     
-    global theProjectPath,ckptPath,yamalpath,stage,PngFilePath,lastfile,getSavePath
+    global theProjectPath,ckptPath,yamalpath,stage,PngFilePath,lastfile,getSavePath,ThreadFlag
     time.sleep(5)
     theProjectPath=""
     ckptPath=""
@@ -42,6 +48,7 @@ def init():
     PngFilePath=None
     lastfile=None
     getSavePath=False
+    ThreadFlag=True
     
     
     
@@ -271,8 +278,9 @@ def ExportTheModel():
        
     except Exception as e:
         print("An error occurred:", str(e))
+        restart_preview_updater()
 
-
+observer = Observer()
 
 def PreViewUploader(folder_to_watch):
     global stage
@@ -281,6 +289,8 @@ def PreViewUploader(folder_to_watch):
     global theProjectPath
     global yamalpath
     global ckptPath
+    global ThreadFlag
+    global observer
     
     
     #lastfile=None
@@ -291,7 +301,8 @@ def PreViewUploader(folder_to_watch):
     observer.start()
 
     try:
-        while True: #stage != 3
+        while  ThreadFlag:
+
             if event_handler.latest_folder:
                 if(lastfile!=event_handler.latest_folder):
                     lastfile=event_handler.latest_folder
@@ -324,31 +335,57 @@ def PreViewUploader(folder_to_watch):
                         print("folder to zip and upload it")    
                 time.sleep(1)
     except KeyboardInterrupt:
+        print("")
+    
         observer.stop()
     observer.join()
     
 
 
 def restart_preview_updater():
-    init()
+   
     global PreviewUPdatethread
+    global stage
+    global  ThreadFlag
     if PreviewUPdatethread and PreviewUPdatethread.is_alive():
         print("Stopping the PreviewUPdatethread...")
-        PreviewUPdatethread.stop()  # You should implement a way to gracefully stop the thread.
-        PreviewUPdatethread.join()
+        ThreadFlag=False
+        observer.stop()
+        
+        
+
+   
+        #PreviewUPdatethread # You should implement a way to gracefully stop the thread.
+        #PreviewUPdatethread.join()
+       
     
+    time.sleep(3)
+    init()
     print("Starting the PreviewUPdatethread again...")
     PreviewUPdatethread = threading.Thread(target=PreViewUploader, args=(folder_to_watch,))
+
     PreviewUPdatethread.start()
+    
+
+def exit_program():
+    print("Exiting the program.")
+    os.kill(os.getpid(), signal.SIGTERM)     
 
 
 
 if __name__ == "__main__":
     print('process is On!')
+    
+
+
+
+
+
+
 
     
     # latest_folder_name = watch_for_latest_folder(folder_to_watch)
-
+    keyboard.add_hotkey('esc',restart_preview_updater)
     PreviewUPdatethread = threading.Thread(target=PreViewUploader, args=(folder_to_watch,))
     PreviewUPdatethread.start()
     
@@ -358,9 +395,13 @@ if __name__ == "__main__":
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
+        stop_event.set()
+        exit_program()
         print("KeyboardInterrupt: Terminating the main program...")
-        sys.exit()
+        ThreadFlag=False
+        PreviewUPdatethread.join()
+        
         # Perform any cleanup or termination actions here, if needed
 
-    PreviewUPdatethread.join()
+   
     
