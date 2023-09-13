@@ -1,12 +1,12 @@
 from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.dispatcher import Dispatcher
+from pythonosc.udp_client import SimpleUDPClient
 import asyncio
 import subprocess
 import zipfile
 import os
 import time
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+
 import threading
 import signal
 import psutil
@@ -15,9 +15,11 @@ import keyboard
 import sys
 
 
+VRip=r'127.0.0.1'
 
-FileUploadCmd = r"python C:\Users\someo\Desktop\RealityEditor\PythonProject\gcpstorege\sftpupload.py"
-GenerateModelwithPromptCMD = r'python C:\Users\someo\Desktop\RealityEditor\PythonProject/threestudio\launch.py --config C:\Users\someo\Desktop\RealityEditor\PythonProject\threestudio\configs\dreamfusion-sd.yaml --train --gpu 0 system.prompt_processor.prompt='
+threeStudioPath=r'D:\Desktop\RealityEditor\PythonProject\threestudio'
+
+GenerateModelwithPromptCMD = f'python {threeStudioPath}\launch.py --config {threeStudioPath}\configs\dreamfusion-sd.yaml --train --gpu 0 system.prompt_processor.prompt='
 
 currentpid = -1
 procesingisRunning = False
@@ -29,19 +31,12 @@ argsarray = []
 
 
 
-
-
-
-
-class PNGHandler(FileSystemEventHandler):
-    def on_created(self, event):
-        if event.is_directory:
-            return
-
-        # Check if the created file is a PNG file
-        if event.src_path.lower().endswith(".png"):
-            # Replace this line with your desired action
-            print(f"New PNG file created: {event.src_path}")
+def send_osc_message(ip, port, address, data):
+    try:
+        client = SimpleUDPClient(ip, port)  # Create client
+        client.send_message(address, data)  # Send OSC message
+    except Exception as e:
+        print(f"Error sending OSC message: {e}")
 
 def handler(s, f):
     
@@ -92,9 +87,7 @@ def filter_handler(address, *args):
     elif address == '/ScanModel':
         print("Scanning Model")
     elif address == '/stopProcess':
-        
         send_keyboard_interrupt()
-       
         procesingisRunning = False
 
     print(f"{address}: {args}")
@@ -144,7 +137,7 @@ def StartGenerateModel(id, prompt):
         # Use subprocess to run the command in the shell
         #subprocess.run('conda activate NeRFStudio', shell=True, check=True)
         command = f"{GenerateModelwithPromptCMD}\"{prompt}\""
-        process = subprocess.Popen( command, shell=True, cwd='C:\\Users\\someo\\Desktop\\RealityEditor\PythonProject\\threestudio')
+        process = subprocess.Popen( command, shell=True, cwd=threeStudioPath)
         currentpid=process.pid
         print(os.getpid(), process.pid)
     except subprocess.CalledProcessError as e:
@@ -161,7 +154,7 @@ def main():
     global isInturupt
     
     server = osc_server.ThreadingOSCUDPServer(
-      ('127.0.0.1',12000), dispatcher)
+      ('192.168.0.139',8888), dispatcher)
     print("Serving on {}".format(server.server_address))
     print("Reality Editor pipeline server is On/Press Esc to exit")
     server.serve_forever()
@@ -196,8 +189,8 @@ if __name__ == "__main__":
     dispatcher.map("/InstructNerfGenerateModel", filter_handler)
     dispatcher.map("/ScanModel", filter_handler)
     dispatcher.map("/stopProcess", filter_handler)
-    ip = "127.0.0.1"
-    port = 12000
+    ip = VRip
+    port = 8888
     keyboard.add_hotkey('esc', exit_program)
 
     
@@ -208,18 +201,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print('no exit')
     
-
-
-
-
-
-
-# async def init_main():
-#     server = AsyncIOOSCUDPServer((ip, port), dispatcher, asyncio.get_event_loop())
-#     transport, protocol = await server.create_serve_endpoint()  # Create datagram endpoint and start serving
-
-#     await loop()  # Enter the main loop of the program
-
-#     transport.close()  # Clean up serve endpoint
-
-# asyncio.run(init_main())

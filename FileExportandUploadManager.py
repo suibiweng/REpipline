@@ -15,6 +15,7 @@ import sys
 from pythonosc.udp_client import SimpleUDPClient
 # 上傳檔名 /位置/
 
+VRip='192.168.0.213'
 theProjectPath=""
 ckptPath=""
 yamalpath=""
@@ -22,15 +23,12 @@ stage=0
 PngFilePath=None
 lastfile=None
 getSavePath=False
-
-
-
-
 private_key_path = '/path/to/your/private/key.pem'
 server_ip = '34.106.250.143'
 server_port = 22
 server_username = 'suibidata2023'
-local_file_path = '/path/to/your/local/directory/'  # Replace with your local file path
+folder_to_watch = r'D:\Desktop\RealityEditor\PythonProject\threestudio\outputs\dreamfusion-sd'
+threeStudioPath= r'D:\Desktop\RealityEditor\PythonProject\threestudio'
 
 
 def init():
@@ -47,13 +45,6 @@ def init():
     
     
     
-    
-    
-    
-
-
-
-
 
 
 def send_osc_message(ip, port, address, data):
@@ -74,6 +65,9 @@ def find_single_obj_file(folder_path):
     Returns:
         str or None: The full path to the first .obj file found, or None if no .obj file is found.
     """
+
+    print("find obj in"+folder_path)
+    time.sleep(5)
     try:
         # Get a list of all files in the folder
         file_list = os.listdir(folder_path)
@@ -100,7 +94,7 @@ def save_mesh(loadMeshPath):
     # load a new mesh
     ms.load_new_mesh(loadMeshPath)
     
-    time.sleep(3)
+    time.sleep(5)
 
     # save the current mesh with default parameters
     ms.save_current_mesh(output_path)
@@ -228,8 +222,8 @@ class PNGHandler(FileSystemEventHandler):
             Modelurl= zip_folder_contents_and_upload(event.src_path,"model.zip")
             # Handle the case where a folder ending with "export" is created
             data2 = [0, Modelurl]
-            send_osc_message('127.0.0.1', 1337, "/GenrateModel", data2)
-            init()
+            send_osc_message(VRip, 1337, "/GenrateModel", data2)
+            restart_preview_updater()
             
             
         
@@ -273,65 +267,10 @@ def ExportTheModel():
     cmd2= f"python launch.py --config {yamalpath} --export --gpu 0 resume={ckptPath} system.exporter_type=mesh-exporter"
     cmd1 = f"python launch.py --config {yamalpath} --export --gpu 0 resume={ckptPath} system.exporter_type=mesh-exporter system.exporter.fmt=obj"
     try:
-        proc = subprocess.Popen( cmd2, shell=True, cwd='C:\\Users\\someo\\Desktop\\RealityEditor\PythonProject\\threestudio')
+        proc = subprocess.Popen( cmd2, shell=True, cwd=threeStudioPath)
        
     except Exception as e:
         print("An error occurred:", str(e))
-
-    
-
-
-
-
-
-
-
-
-
-
-
-# def watch_for_latest_folder(folder_to_watch):
-#     global stage
-#     global PngFilePath
-#     global lastfile
-    
-#     #lastfile=None
-#     event_handler = LatestFolderHandler()
-#     png_event = PNGHandler()
-#     observer = Observer()
-#     observer.schedule(event_handler, folder_to_watch, recursive=False)
-#     observer.start()
-
-#     try:
-#         while True: #stage != 3
-#             if event_handler.latest_folder:
-#                 if(lastfile!=event_handler.latest_folder):
-#                     lastfile=event_handler.latest_folder
-#                     print(event_handler.latest_folder)
-                    
-#                     if(stage==0):
-#                         observer.unschedule_all()  # Stop watching the old folder
-#                         observer.schedule(event_handler, lastfile, recursive=False)  # Start watching the new folder
-#                         stage=1
-
-#                     elif(stage==1):
-
-#                         print (os.path.basename(event_handler.latest_folder))
-#                         if( os.path.basename(event_handler.latest_folder)=='save'):
-                            
-#                             PngFilePath=event_handler.latest_folder
-#                             stage=2
-#                             observer.unschedule_all()
-#                             observer.schedule(png_event, PngFilePath, recursive=False) 
-#                             print("changetoSave")
-#                     elif(stage==2):
-#                         pass
-#                     elif(stage==3):
-#                         print("folder to zip and upload it")    
-#                 time.sleep(1)
-#     except KeyboardInterrupt:
-#         observer.stop()
-#     observer.join()
 
 
 
@@ -389,52 +328,25 @@ def PreViewUploader(folder_to_watch):
     observer.join()
     
 
-# def upload_file(file_name):
 
-#     bucket_name = 'suibidata'
-#     # Create a client for interacting with the GCP Storage API, using the ServiceAccount key file
-#     client = storage.Client.from_service_account_json('studious-bit-398115-420fcd83daa6.json')
-#     # Create a bucket object
-#     bucket = client.bucket(bucket_name)
-#     # Set the name of the file you want to upload
-#     #file_name = 'test2.zip'
-#     # Create a blob object from the file
-#     blob = bucket.blob( os.path.basename(file_name))
-#     # Read the contents of the file
-#     with open(file_name, 'rb') as f:
-#         contents = f.read()
-#     # Upload the file to the bucket
-#     blob.upload_from_string(contents)
-#     print(f'File { os.path.basename(file_name)} uploaded to {blob.public_url}')
-#     # print(f'https://storage.cloud.google.com/suibidata/{file_name}')
-
-
-#  #分享資料
-# def get_presigned_url (bucket_name, blob_name) :
-#     # Create a client for interacting with the GCP Storage API, using the ServiceAccount key file
-#     client = storage.Client.from_service_account_json('studious-bit-398115-420fcd83daa6.json')
-#     # Create a bucket object
-#     bucket = client.bucket(bucket_name)
-
-#     blob = bucket.blob(blob_name)
-#     url = blob.generate_signed_url(
-#         version="v4",
-#         # Generate URL for 15 minutes
-#         expiration=datetime.timedelta(minutes=15),
-#         # Only Allow GET Call.
-#         method="GET",
-#     )
-#     print("Generated GET signed URL:")
-#     print(url)
-#     return url
-
+def restart_preview_updater():
+    init()
+    global PreviewUPdatethread
+    if PreviewUPdatethread and PreviewUPdatethread.is_alive():
+        print("Stopping the PreviewUPdatethread...")
+        PreviewUPdatethread.stop()  # You should implement a way to gracefully stop the thread.
+        PreviewUPdatethread.join()
+    
+    print("Starting the PreviewUPdatethread again...")
+    PreviewUPdatethread = threading.Thread(target=PreViewUploader, args=(folder_to_watch,))
+    PreviewUPdatethread.start()
 
 
 
 if __name__ == "__main__":
     print('process is On!')
 
-    folder_to_watch = r"C:\Users\someo\Desktop\RealityEditor\PythonProject\threestudio\outputs\dreamfusion-sd"
+    
     # latest_folder_name = watch_for_latest_folder(folder_to_watch)
 
     PreviewUPdatethread = threading.Thread(target=PreViewUploader, args=(folder_to_watch,))
@@ -452,27 +364,3 @@ if __name__ == "__main__":
 
     PreviewUPdatethread.join()
     
-
-
-
-
-
-
-   # print(f"Latest created folder name: {latest_folder_name}")
-
-    # # The name for the new bucket
-    # bucket_name = bucket_name
-    # upload_file(bucket_name)
-    # # The name for the new bucket
-    # bucket_name = bucket_name
-    # blob_name = os.path.basename(file_name)
-    
-    
-    # event_handler = PNGHandler()
-    # observer = Observer()
-    # observer.schedule(event_handler, folder_to_watch, recursive=False)
-    # print(f"Watching folder: {folder_to_watch}")
-    # observer.start()
-    # observer.stop()
-    # get_presigned_url(bucket_name, blob_name)
-    # print(f'https://storage.cloud.google.com/{bucket_name}/{file_name}')
