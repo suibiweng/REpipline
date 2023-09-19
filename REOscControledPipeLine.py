@@ -1,6 +1,7 @@
 from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.udp_client import SimpleUDPClient
+from pythonosc import osc_server
 import asyncio
 import subprocess
 import zipfile
@@ -10,7 +11,7 @@ import time
 import threading
 import signal
 import psutil
-from pythonosc import osc_server
+
 import keyboard
 import sys
 
@@ -133,6 +134,7 @@ def kill(proc_pid):
 def StartGenerateModel(id, prompt):
     global process
     global currentpid
+    send_osc_message('127.0.0.1', 6161, "updateID", id)
     try:
         # Use subprocess to run the command in the shell
         #subprocess.run('conda activate NeRFStudio', shell=True, check=True)

@@ -16,8 +16,15 @@ import keyboard
 import datetime
 import sys
 from pythonosc.udp_client import SimpleUDPClient
+from pythonosc.dispatcher import Dispatcher
+from pythonosc.udp_client import SimpleUDPClient
+from pythonosc import osc_server
+
+
 import signal
 # 上傳檔名 /位置/
+
+
 
 VRip='192.168.0.213'
 theProjectPath=""
@@ -34,12 +41,15 @@ server_username = 'suibidata2023'
 folder_to_watch = r'D:\Desktop\RealityEditor\PythonProject\threestudio\outputs\dreamfusion-sd'
 threeStudioPath= r'D:\Desktop\RealityEditor\PythonProject\threestudio'
 ThreadFlag =True
+currentId=-1
+
+
 
 stop_event = threading.Event()
 
 def init():
     
-    global theProjectPath,ckptPath,yamalpath,stage,PngFilePath,lastfile,getSavePath,ThreadFlag
+    global theProjectPath,ckptPath,yamalpath,stage,PngFilePath,lastfile,getSavePath,ThreadFlag,currentId
     time.sleep(5)
     theProjectPath=""
     ckptPath=""
@@ -49,6 +59,7 @@ def init():
     lastfile=None
     getSavePath=False
     ThreadFlag=True
+    currentId=-1
     
     
     
@@ -228,7 +239,7 @@ class PNGHandler(FileSystemEventHandler):
             save_mesh(find_single_obj_file(event.src_path))
             Modelurl= zip_folder_contents_and_upload(event.src_path,"model.zip")
             # Handle the case where a folder ending with "export" is created
-            data2 = [0, Modelurl]
+            data2 = [currentId, Modelurl]
             send_osc_message(VRip, 1337, "/GenrateModel", data2)
             restart_preview_updater()
             
@@ -372,14 +383,29 @@ def exit_program():
     os.kill(os.getpid(), signal.SIGTERM)     
 
 
+def filter_handler(address, *args):
+    global currentId
+
+    if address == '/updateID':
+        currentId=args[0]
+        print(args)
+
+    print(f"{address}: {args}")
+
+
 
 if __name__ == "__main__":
     print('process is On!')
     
+    dispatcher = Dispatcher()
+    dispatcher.map("/updateID", filter_handler)
 
 
-
-
+    server = osc_server.ThreadingOSCUDPServer(
+      ('127.0.0.1',6161), dispatcher)
+    print("Serving on {}".format(server.server_address))
+    print("Reality Editor pipeline server is On/Press Esc to exit")
+  
 
 
 
@@ -388,6 +414,7 @@ if __name__ == "__main__":
     keyboard.add_hotkey('esc',restart_preview_updater)
     PreviewUPdatethread = threading.Thread(target=PreViewUploader, args=(folder_to_watch,))
     PreviewUPdatethread.start()
+    server.serve_forever()
     
     
 
