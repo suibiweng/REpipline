@@ -1,3 +1,7 @@
+from pythonosc.osc_server import AsyncIOOSCUDPServer
+from pythonosc.dispatcher import Dispatcher
+from pythonosc import osc_server
+
 import cv2
 import numpy as np
 
@@ -53,8 +57,26 @@ def set_awb(url: str, awb: int=1):
         print("SET_QUALITY: something went wrong")
     return awb
 
+def filter_handler(address, *args):
+    if address == '/TakePhoto':
+        print(args)
+
+    print(f"{address}: {args}")
+
 if __name__ == '__main__':
     set_resolution(URL, index=8)
+    
+    dispatcher = Dispatcher()
+    dispatcher.map("/TakePhoto", filter_handler)
+    
+    server = osc_server.ThreadingOSCUDPServer(
+      ('192.168.0.139',8888), dispatcher)
+    print("Serving on {}".format(server.server_address))
+    print("Reality Editor pipeline server is On/Press Esc to exit")
+    server.serve_forever()
+    dispatcher = Dispatcher()
+    dispatcher.map("/PromtGenerateModel", filter_handler)
+    
 
     while True:
         if cap.isOpened():
