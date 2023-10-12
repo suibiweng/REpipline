@@ -6,15 +6,28 @@ import cv2
 import numpy as np
 
 import requests
+import threading
 
 '''
 INFO SECTION
 - if you want to monitor raw parameters of ESP32CAM, open the browser and go to http://192.168.x.x/status
 - command can be sent through an HTTP get composed in the following way http://192.168.x.x/control?var=VARIABLE_NAME&val=VALUE (check varname and value in status)
 '''
+def filter_handler(address, *args):
+    if address == '/TakePhoto':
+        print(args)
+
+    print(f"{address}: {args}")
+
+
+
+    
+
+
 
 # ESP32 URL
-URL = "http://10.0.0.144"
+URL = "http://192.168.0.130"
+
 AWB = True
 
 # Face recognition and opencv setup
@@ -57,27 +70,8 @@ def set_awb(url: str, awb: int=1):
         print("SET_QUALITY: something went wrong")
     return awb
 
-def filter_handler(address, *args):
-    if address == '/TakePhoto':
-        print(args)
 
-    print(f"{address}: {args}")
-
-if __name__ == '__main__':
-    set_resolution(URL, index=8)
-    
-    dispatcher = Dispatcher()
-    dispatcher.map("/TakePhoto", filter_handler)
-    
-    server = osc_server.ThreadingOSCUDPServer(
-      ('192.168.0.139',8888), dispatcher)
-    print("Serving on {}".format(server.server_address))
-    print("Reality Editor pipeline server is On/Press Esc to exit")
-    server.serve_forever()
-    dispatcher = Dispatcher()
-    dispatcher.map("/PromtGenerateModel", filter_handler)
-    
-
+def main_loop():
     while True:
         if cap.isOpened():
             ret, frame = cap.read()
@@ -85,7 +79,6 @@ if __name__ == '__main__':
             if ret:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 gray = cv2.equalizeHist(gray)
-
 
             cv2.imshow("frame", frame)
 
@@ -98,15 +91,65 @@ if __name__ == '__main__':
             elif key == ord('q'):
                 val = int(input("Set quality (10 - 63): "))
                 set_quality(URL, value=val)
-            elif key == ord('c'):
-                output_filename = input("Enter the output filename (e.g., captured_frame.jpg): ")
-                capture_frame_and_save(cap, output_filename)
 
             elif key == ord('a'):
                 AWB = set_awb(URL, AWB)
 
+            elif key == ord('c'):
+                output_filename = input("Enter the output filename (e.g., captured_frame.jpg): ")
+                capture_frame_and_save(cap, output_filename)
+
             elif key == 27:
                 break
 
-    cv2.destroyAllWindows()
+
+    
+# Function to handle OSC messages
+def default_handler(address, *args):
+    print(f"Received OSC message: {address} {args}")
+    with open("example.txt", "w") as file:
+        file.write(args)
+        # store the info
+        # if address == '/imagePath':
+            # on receiving message, take a photo
+
+if __name__ == '__main__':
+    set_resolution(URL, index=8)
+    
+    # dispatcher = Dispatcher()
+    # dispatcher.map("/TakePhoto", filter_handler)
+    # server = osc_server.ThreadingOSCUDPServer(
+    #   ('127.0.0.1',8888), dispatcher)
+    # print("Serving on {}".format(server.server_address))
+    # print("Reality Editor pipeline server is On/Press Esc to exit")
+    # server.serve_forever()
+    # dispatcher = Dispatcher()
+    # dispatcher.map("/PromtGenerateModel", filter_handler)
+
+    # Create a thread for the main loop
+    main_thread = threading.Thread(target=main_loop)
+    main_thread.start()
+    
+
+
+    # osc
+    dispatcherosc = Dispatcher()
+    dispatcherosc.map("/filter", print)
+    dispatcherosc.set_default_handler(default_handler)
+
+
+    # Create an OSC server thread
+    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.198', 6161), dispatcherosc)  # Change the IP and port as needed
+    osc_server.serve_forever()
+    
+    
+
+
+    # Wait for the main thread to finish (you can continue with other tasks here)
+    main_thread.join()
+
+
+
+
+    cv2.destroyallwindows()
     cap.release()
