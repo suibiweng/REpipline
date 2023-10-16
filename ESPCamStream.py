@@ -33,6 +33,14 @@ AWB = True
 # Face recognition and opencv setup
 cap = cv2.VideoCapture(URL + ":81/stream")
 # face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_alt.xml') # insert the full path to haarcascade file if you encounter any problem
+saveFile = open("myfile.txt", "a")
+saveImageName = "test.jpg"
+saveImageSwitch = False
+
+# sharedinfo = {
+#     "saveimagename": "test.jpg",
+#     "saveimageswitch": False
+# }
 
 def capture_frame_and_save(video_capture, output_filename):
     ret, frame = video_capture.read()
@@ -75,6 +83,14 @@ def main_loop():
     while True:
         if cap.isOpened():
             ret, frame = cap.read()
+            
+            global saveImageSwitch
+            if saveImageSwitch:
+                print("saving from the main loop")
+                global saveImageName
+                capture_frame_and_save(cap, saveImageName)
+                saveImageSwitch = False
+                
 
             if ret:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -83,7 +99,9 @@ def main_loop():
             cv2.imshow("frame", frame)
 
             key = cv2.waitKey(1)
-
+            
+            
+                
             if key == ord('r'):
                 idx = int(input("Select resolution index: "))
                 set_resolution(URL, index=idx, verbose=True)
@@ -106,12 +124,22 @@ def main_loop():
     
 # Function to handle OSC messages
 def default_handler(address, *args):
-    print(f"Received OSC message: {address} {args}")
-    with open("example.txt", "w") as file:
-        file.write(args)
-        # store the info
-        # if address == '/imagePath':
-            # on receiving message, take a photo
+    # print(address)
+    print(args[0])
+    # if address == '/imagePath':
+    #     print(args[0])
+
+    # store the info
+    saveFile.write(args[0])
+    # on receiving message, take a photo
+    if address == "/imagePath":
+        print("saving")
+        global saveImageName
+        saveImageName = args[0] + ".jpg"
+        global saveImageSwitch
+        saveImageSwitch = True
+
+            
 
 if __name__ == '__main__':
     set_resolution(URL, index=8)
@@ -126,7 +154,7 @@ if __name__ == '__main__':
     # dispatcher = Dispatcher()
     # dispatcher.map("/PromtGenerateModel", filter_handler)
 
-    # Create a thread for the main loop
+    # Create a thread for the camera
     main_thread = threading.Thread(target=main_loop)
     main_thread.start()
     
