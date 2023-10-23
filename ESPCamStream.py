@@ -8,6 +8,9 @@ import numpy as np
 import requests
 import threading
 
+import time
+import os
+
 '''
 INFO SECTION
 - if you want to monitor raw parameters of ESP32CAM, open the browser and go to http://192.168.x.x/status
@@ -33,7 +36,6 @@ AWB = True
 # Face recognition and opencv setup
 cap = cv2.VideoCapture(URL + ":81/stream")
 # face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_alt.xml') # insert the full path to haarcascade file if you encounter any problem
-saveFile = open("myfile.txt", "a")
 saveImageName = "test.jpg"
 saveImageSwitch = False
 
@@ -45,12 +47,16 @@ saveImageSwitch = False
 def capture_frame_and_save(video_capture, output_filename):
     ret, frame = video_capture.read()
     if ret:
+        # obj = time.gmtime()
+        # path = "img/" + str(obj.tm_mon) + str(obj.tm_mday) + str(obj.tm_hour) + str(obj.tm_min)
+        # print(path)
+        
         cv2.imwrite(output_filename, frame)
         print(f"Frame saved as {output_filename}")
     else:
         print("Error: Could not capture frame")
 
-def set_resolution(url: str, index: int=6, verbose: bool=False):
+def set_resolution(url: str, index: int=10, verbose: bool=False):
     try:
         if verbose:
             resolutions = "10: UXGA(1600x1200)\n9: SXGA(1280x1024)\n8: XGA(1024x768)\n7: SVGA(800x600)\n6: VGA(640x480)\n5: CIF(400x296)\n4: QVGA(320x240)\n3: HQVGA(240x176)\n0: QQVGA(160x120)"
@@ -86,7 +92,7 @@ def main_loop():
             
             global saveImageSwitch
             if saveImageSwitch:
-                print("saving from the main loop")
+                # print("saving from the main loop")
                 global saveImageName
                 capture_frame_and_save(cap, saveImageName)
                 saveImageSwitch = False
@@ -125,24 +131,32 @@ def main_loop():
 # Function to handle OSC messages
 def default_handler(address, *args):
     # print(address)
-    print(args[0])
+    # print(args[0] + "\n")
     # if address == '/imagePath':
     #     print(args[0])
+    saveFile = open("myfile.txt", "a")
 
     # store the info
-    saveFile.write(args[0])
     # on receiving message, take a photo
     if address == "/imagePath":
-        print("saving")
+        print("a new frame")
         global saveImageName
-        saveImageName = args[0] + ".jpg"
+        saveImageName = args[0]
+        
+
+        saveFile.write(saveImageName + "\n");
+        saveFile.write(args[1])
+        
+        print(saveImageName)
         global saveImageSwitch
         saveImageSwitch = True
+
+    saveFile.close();
 
             
 
 if __name__ == '__main__':
-    set_resolution(URL, index=8)
+    set_resolution(URL, index=7)
     
     # dispatcher = Dispatcher()
     # dispatcher.map("/TakePhoto", filter_handler)
