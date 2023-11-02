@@ -1,6 +1,7 @@
 from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.dispatcher import Dispatcher
 from pythonosc import osc_server
+import subprocess
 
 import cv2
 import numpy as np
@@ -10,6 +11,12 @@ import threading
 
 import time
 import os
+
+from pathlib import Path
+
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
 
 '''
 INFO SECTION
@@ -29,7 +36,7 @@ def filter_handler(address, *args):
 
 
 # ESP32 URL
-URL = "http://192.168.0.130"
+URL = "http://192.168.0.128"
 
 AWB = True
 
@@ -38,21 +45,25 @@ cap = cv2.VideoCapture(URL + ":81/stream")
 # face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_alt.xml') # insert the full path to haarcascade file if you encounter any problem
 saveImageName = "test.jpg"
 saveImageSwitch = False
+imgPath = "1"
 
 # sharedinfo = {
 #     "saveimagename": "test.jpg",
 #     "saveimageswitch": False
 # }
 
+        
 def capture_frame_and_save(video_capture, output_filename):
     ret, frame = video_capture.read()
     if ret:
         # obj = time.gmtime()
         # path = "img/" + str(obj.tm_mon) + str(obj.tm_mday) + str(obj.tm_hour) + str(obj.tm_min)
         # print(path)
-        
-        cv2.imwrite(output_filename, frame)
-        print(f"Frame saved as {output_filename}")
+        global imgPath
+        myImgPath = imgPath + "/" +output_filename
+        print(myImgPath)
+        cv2.imwrite(myImgPath, frame)
+        print(f"Frame saved")
     else:
         print("Error: Could not capture frame")
 
@@ -126,19 +137,35 @@ def main_loop():
             elif key == 27:
                 break
 
+class MyHandler(FileSystemEventHandler):
+    def __init__(self, target_file, subprocess_to_terminate):
+        self.target_file = target_file
+        self.subprocess = subprocess_to_terminate
 
+    def on_created(self, event):
+        if not event.is_directory and event.src_path.endswith(self.target_file):
+            print(f"File created: {event.src_path}")
+            print("Terminating trainCommand subprocess...")
+            self.subprocess.send_signal(subprocess.CTRL_C_EVENT)
     
 # Function to handle OSC messages
 def default_handler(address, *args):
-    # print(address)
-    # print(args[0] + "\n")
-    # if address == '/imagePath':
-    #     print(args[0])
-    saveFile = open("myfile.txt", "a")
+    if address == "/start":
+        print("start")
+        obj = time.gmtime()
+        global imgPath
+        imgPath ="output"+"/"+ str(obj.tm_mon) + str(obj.tm_mday) + str(obj.tm_hour) + str(obj.tm_min)
+        folder_path = Path(imgPath)
+        if not folder_path.exists():
+            folder_path.mkdir()
+            print(f"Folder '{imgPath}' created successfully.")
+        else:
+            print(f"Folder '{imgPath}' already exists.")
 
     # store the info
     # on receiving message, take a photo
     if address == "/imagePath":
+        saveFile = open(imgPath+"/data.txt", "w")
         print("a new frame")
         global saveImageName
         saveImageName = args[0]
@@ -150,8 +177,37 @@ def default_handler(address, *args):
         print(saveImageName)
         global saveImageSwitch
         saveImageSwitch = True
+        saveFile.close();
+    
+    if address == "/end":
+        print("finish recording")
+        
+        outputImgPath = imgPath+"Out"
+        # Define the command you want to run within the Conda environment
+        command = f"ns-process-data images --data {imgPath} --output-dir {outputImgPath}"
+        # Run the command within the Conda environment
+        subprocess.run(command, shell=True)
+        print("preprocess data done")
+        
+        trainCommand = f"ns-train nerfacto --data {outputImgPath}"
+        # I haven't figured out how to get the folder name that nerf created, line 196
 
-    saveFile.close();
+        # my_subprocess = subprocess.Popen(trainCommand, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # target_directory = "/outputs"+"/"+outputImgPath + "/nerfacto"
+        # target_directory = os.path.abspath(target_directory)
+
+        # event_handler = MyHandler(target_directory, my_subprocess)
+        # observer = Observer()
+        # observer.schedule(event_handler, path=os.path.dirname(target_directory), recursive=False)
+        # observer.start()
+
+        # try:
+        #     while my_subprocess.poll() is None:
+        #         time.sleep(1)
+        # except KeyboardInterrupt:
+        #     observer.stop()
+        #     observer.join()
+        
 
             
 

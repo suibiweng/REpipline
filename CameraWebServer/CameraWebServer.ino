@@ -8,7 +8,7 @@
 // ===========================
 // Enter your WiFi credentials
 // ===========================
-const char* ssid = "SuibiBoulder";
+const char* ssid = "JamNet";
 const char* password = "12345678";
 
 void startCameraServer();
