@@ -138,15 +138,23 @@ def main_loop():
                 break
 
 class MyHandler(FileSystemEventHandler):
-    def __init__(self, target_file, subprocess_to_terminate):
-        self.target_file = target_file
+    def __init__(self, subprocess_to_terminate):
         self.subprocess = subprocess_to_terminate
+
+    def on_created(self, event):
+        if event.is_directory:
+            print(f"Directory created: {event.src_path}")
+            print("Terminating trainCommand subprocess...")
+            self.subprocess.send_signal(subprocess.CTRL_C_EVENT)
+
+class SubdirHandler(FileSystemEventHandler):
+    def __init__(self, target_file):
+        self.target_file = target_file
 
     def on_created(self, event):
         if not event.is_directory and event.src_path.endswith(self.target_file):
             print(f"File created: {event.src_path}")
-            print("Terminating trainCommand subprocess...")
-            self.subprocess.send_signal(subprocess.CTRL_C_EVENT)
+
     
 # Function to handle OSC messages
 def default_handler(address, *args):
@@ -181,33 +189,59 @@ def default_handler(address, *args):
     
     if address == "/end":
         print("finish recording")
-        
+        # for debugging
+        imgPath = "output/10191312"        
+
         outputImgPath = imgPath+"Out"
-        # Define the command you want to run within the Conda environment
-        command = f"ns-process-data images --data {imgPath} --output-dir {outputImgPath}"
-        # Run the command within the Conda environment
-        subprocess.run(command, shell=True)
-        print("preprocess data done")
+        # # Define the command you want to run within the Conda environment
+        # command = f"ns-process-data images --data {imgPath} --output-dir {outputImgPath}"
+        # subprocess.run(command, shell=True)
+        # print("preprocess data done")
         
         trainCommand = f"ns-train nerfacto --data {outputImgPath}"
-        # I haven't figured out how to get the folder name that nerf created, line 196
+        # Run the trainCommand subprocess and capture its output
+        train_process = subprocess.Popen(trainCommand, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        train_process_stdout, _ = train_process.communicate()
 
-        # my_subprocess = subprocess.Popen(trainCommand, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        # target_directory = "/outputs"+"/"+outputImgPath + "/nerfacto"
-        # target_directory = os.path.abspath(target_directory)
+        # Parse the output to find the most recently created directory
+        output_lines = train_process_stdout.decode("utf-8").splitlines()
+        most_recent_directory = None
+        for line in output_lines:
+            if line.startswith("    timestamp"):
+                print(line)
+                most_recent_directory = line[len("    timestamp")+2:]
+                most_recent_directory = most_recent_directory[:-2]
+                print(most_recent_directory)
+                break
 
-        # event_handler = MyHandler(target_directory, my_subprocess)
-        # observer = Observer()
-        # observer.schedule(event_handler, path=os.path.dirname(target_directory), recursive=False)
-        # observer.start()
+        if most_recent_directory:
+            most_recent_directory = "outputs/" + outputImgPath[7:] + "/nerfacto/" + most_recent_directory
+            print(most_recent_directory)
+            most_recent_directory = os.path.abspath(most_recent_directory)
 
-        # try:
-        #     while my_subprocess.poll() is None:
-        #         time.sleep(1)
-        # except KeyboardInterrupt:
-        #     observer.stop()
-        #     observer.join()
-        
+            # Start monitoring the most recently created directory
+            event_handler = MyHandler(train_process)
+            observer = Observer()
+            observer.schedule(event_handler, path=most_recent_directory, recursive=False)
+            observer.start()
+
+            # Start monitoring for the "text.txt" file in the subdirectory
+            subdirectory = os.path.join(most_recent_directory, "subdirectory_name")  # Replace "subdirectory_name" with the actual subdirectory name
+            sub_event_handler = SubdirHandler("dataparser_transforms.json")
+            sub_observer = Observer()
+            sub_observer.schedule(sub_event_handler, path=subdirectory, recursive=False)
+            sub_observer.start()
+
+            try:
+                while train_process.poll() is None:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                observer.stop()
+                observer.join()
+                sub_observer.stop()
+                sub_observer.join()
+        else:
+            print("No directory found to monitor.")
 
             
 
