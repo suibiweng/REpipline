@@ -89,9 +89,9 @@ def WsMessageProcessing(message):
 
 VRip=r'127.0.0.1'
 
-threeStudioPath=r'D:\Desktop\RealityEditor\PythonProject\threestudio'
-
-GenerateModelwithPromptCMD = f'python {threeStudioPath}\launch.py --config {threeStudioPath}\configs\dreamfusion-sd.yaml --train --gpu 0 system.prompt_processor.prompt='
+StudioPath=r'C:\Users\someo\Desktop\RealityEditor\PythonProject\dreamgaussian'
+f' main.py --config configs/text.yaml prompt="banana" save_path=banana'
+GenerateModelwithPromptCMD = f'python {StudioPath}\main.py --config {StudioPath}\configs/text.yaml' 
 
 currentpid = -1
 procesingisRunning = False
@@ -207,10 +207,19 @@ def StartGenerateModel(id, prompt):
     global currentpid
     send_osc_message('127.0.0.1', 6161, "updateID", id)
     try:
+        
+        thePrompt=f' prompt="{prompt}"'
+        nospacePrompt=prompt.replace(" ", "") 
+        
+        
+        
         # Use subprocess to run the command in the shell
         #subprocess.run('conda activate NeRFStudio', shell=True, check=True)
-        command = f"{GenerateModelwithPromptCMD}\"{prompt}\""
-        process = subprocess.Popen( command, shell=True, cwd=threeStudioPath)
+        command = f"{GenerateModelwithPromptCMD}{thePrompt}"+f' save_path={nospacePrompt}'
+        
+    
+        
+        process = subprocess.Popen( command, shell=True, cwd=StudioPath)
         currentpid=process.pid
         print(os.getpid(), process.pid)
     except subprocess.CalledProcessError as e:
@@ -227,7 +236,7 @@ def main():
     global isInturupt
     
     server = osc_server.ThreadingOSCUDPServer(
-      ('192.168.0.139',8888), dispatcher)
+      ('127.0.0.1',8888), dispatcher)
     print("Serving on {}".format(server.server_address))
     print("Reality Editor pipeline server is On/Press Esc to exit")
     server.serve_forever()
@@ -267,7 +276,7 @@ if __name__ == "__main__":
     keyboard.add_hotkey('esc', exit_program)
 
  #   asyncio.get_event_loop().run_until_complete(WSmain())
-    tornado.ioloop.IOLoop.current().start()
+   # tornado.ioloop.IOLoop.current().start()
 
 
     
