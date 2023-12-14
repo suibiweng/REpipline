@@ -1,3 +1,5 @@
+*.FBX
+*.zip
 *.jpg
 output/
 outputs/

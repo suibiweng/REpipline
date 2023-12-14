@@ -28,17 +28,17 @@ class MyHandler(FileSystemEventHandler):
 
         new_file = event.src_path
 
-        if any(new_file.endswith(ext) for ext in (".obj", ".mtl", ".png")):
+        if any(new_file.endswith(ext) for ext in (".FBX")):
             self.latest_files.append(new_file)
 
         # Keep only the latest three files
-        if len(self.latest_files) > 3:
+        if len(self.latest_files) > 1:
             self.latest_files.pop(0)
 
         print(f"New file created: {new_file}")
         print(f"Latest files: {self.latest_files}")
 
-        if len(self.latest_files) == 3:
+        if len(self.latest_files) == 1:
             self.handle_latest_files()
 
     def handle_latest_files(self):
@@ -147,7 +147,7 @@ def initialize_observer(path, event_handler):
     return observer, observer_thread
 
 if __name__ == "__main__":
-    path_to_watch_files = 'C:/Users/someo/Desktop/RealityEditor/PythonProject/dreamgaussian/logs'
+    path_to_watch_files = "C:/UnityProject\ShapE\Models/"
     event_handler_files = MyHandler()
 
     observer_files, observer_thread_files = initialize_observer(path_to_watch_files, event_handler_files)

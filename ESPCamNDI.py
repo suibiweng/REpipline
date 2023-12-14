@@ -50,18 +50,16 @@ imgPath = "1"
 
         
 def capture_frame_and_save(video_capture, output_filename):
-    ret, frame = video_capture.read()
-    if ret:
+
         # obj = time.gmtime()
         # path = "img/" + str(obj.tm_mon) + str(obj.tm_mday) + str(obj.tm_hour) + str(obj.tm_min)
         # print(path)
         global imgPath
         myImgPath = imgPath + "/" +output_filename
         print(myImgPath)
-        cv2.imwrite(myImgPath, frame)
+        cv2.imwrite(myImgPath, video_capture)
         print(f"Frame saved")
-    else:
-        print("Error: Could not capture frame")
+  
 
 def set_resolution(url: str, index: int=10, verbose: bool=False):
     try:
@@ -135,7 +133,7 @@ def main_loop():
         t, v, _, _ = ndi.recv_capture_v2(ndi_recv, 5000)
 
         if t == ndi.FRAME_TYPE_VIDEO:
-            print('Video data received (%dx%d).' % (v.xres, v.yres))
+            #print('Video data received (%dx%d).' % (v.xres, v.yres))
             frame = np.copy(v.data)
             cv2.imshow('ndi image', frame)
             ndi.recv_free_video_v2(ndi_recv, v)
@@ -176,31 +174,6 @@ def main_loop():
             elif key == 27:
                 break
             
-def NDIFrameINI():
-
-
-
-   
-
-    # while True:
-    #     t, v, _, _ = ndi.recv_capture_v2(ndi_recv, 5000)
-
-    #     if t == ndi.FRAME_TYPE_VIDEO:
-    #         print('Video data received (%dx%d).' % (v.xres, v.yres))
-    #         frame = np.copy(v.data)
-    #         cv.imshow('ndi image', frame)
-    #         ndi.recv_free_video_v2(ndi_recv, v)
-
-    #     if cv.waitKey(1) & 0xff == 27:
-    #         break
-
-    # ndi.recv_destroy(ndi_recv)
-    # ndi.destroy()
-    # cv.destroyAllWindows()
-
-    return 0
-
-
 class MyHandler(FileSystemEventHandler):
     def __init__(self, subprocess_to_terminate):
         self.subprocess = subprocess_to_terminate
@@ -310,8 +283,7 @@ def default_handler(address, *args):
             
 
 if __name__ == '__main__':
-    set_resolution(URL, index=7)
-    
+    #set_resolution(URL, index=7)
     # dispatcher = Dispatcher()
     # dispatcher.map("/TakePhoto", filter_handler)
     # server = osc_server.ThreadingOSCUDPServer(
@@ -335,7 +307,7 @@ if __name__ == '__main__':
 
 
     # Create an OSC server thread
-    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.198', 6161), dispatcherosc)  # Change the IP and port as needed
+    osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
     osc_server.serve_forever()
     
     

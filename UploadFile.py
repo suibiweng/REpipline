@@ -40,15 +40,15 @@ def upload_file_to_server(server_ip, server_port, local_file_path):
         ssh.close()
 
 def main():
-    parser = argparse.ArgumentParser(description='Upload a file to a remote server using SSH and Paramiko.')
-    parser.add_argument('server_ip', type=str, help='Remote server IP address or hostname')
-    parser.add_argument('server_port', type=int, help='SSH port on the remote server')
+    # parser = argparse.ArgumentParser(description='Upload a file to a remote server using SSH and Paramiko.')
+    # parser.add_argument('server_ip', type=str, help='Remote server IP address or hostname')
+    # parser.add_argument('server_port', type=int, help='SSH port on the remote server')
     
-    parser.add_argument('local_file_path', type=str, help='Local file path to upload')
+    # parser.add_argument('local_file_path', type=str, help='Local file path to upload')
     
-    args = parser.parse_args()
+    # args = parser.parse_args()
     
-    uploaded_url = upload_file_to_server(args.server_ip, args.server_port, args.local_file_path)
+    uploaded_url = upload_file_to_server("34.106.250.143", 22 , "A_car.zip")
 
 if __name__ == '__main__':
     main()

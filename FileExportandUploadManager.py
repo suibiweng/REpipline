@@ -27,7 +27,7 @@ import signal
 
 
 VRip='192.168.0.213'
-theProjectPath=""
+theProjectPath=""`
 ckptPath=""
 yamalpath=""
 stage=0
@@ -157,6 +157,19 @@ def copy_and_rename_png_with_delay(source_file, new_file_name="preview.png", del
 
 
 
+def zip_folder_contents_and_upload(folder_path, output_zip):
+    time.sleep(10)
+    print("ziping the file")
+    
+    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for foldername, subfolders, filenames in os.walk(folder_path):
+            for filename in filenames:
+                file_path = os.path.join(foldername, filename)
+                arcname = os.path.relpath(file_path, folder_path)
+                zipf.write(file_path, arcname)
+    return upload_file_to_server(output_zip)
+
+
 def upload_file_to_server( local_file_path,server_ip = '34.106.250.143', server_port=22):
     try:
         # 創建SSH客戶端對象
@@ -250,17 +263,6 @@ class PNGHandler(FileSystemEventHandler):
 
 
 
-def zip_folder_contents_and_upload(folder_path, output_zip):
-    time.sleep(10)
-    print("ziping the file")
-    
-    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for foldername, subfolders, filenames in os.walk(folder_path):
-            for filename in filenames:
-                file_path = os.path.join(foldername, filename)
-                arcname = os.path.relpath(file_path, folder_path)
-                zipf.write(file_path, arcname)
-    return upload_file_to_server(output_zip)
 
 
 
