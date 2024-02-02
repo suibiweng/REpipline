@@ -13,16 +13,21 @@ from pythonosc import osc_server
 
 MovingisDone=False
 FolderPath=""
-VRip='192.168.0.213'
+VRip='192.168.137.195'
+UrlId="xx"
+modelId=0
 
 
 
 
 class MyHandler(FileSystemEventHandler):
+   
     def __init__(self):
         self.latest_files = []
 
     def on_created(self, event):
+        global UrlId
+        global modelId
         if event.is_directory:
             return
 
@@ -36,6 +41,15 @@ class MyHandler(FileSystemEventHandler):
             self.latest_files.pop(0)
 
         print(f"New file created: {new_file}")
+        file_name_only, file_extension = os.path.splitext(new_file)
+        UrlId= file_name_only
+        print(f"New file ID: {UrlId}")
+       
+       
+       
+        result_list=os.path.basename(new_file).split("_")
+        #modelId=int(result_list[0])
+     
         print(f"Latest files: {self.latest_files}")
 
         if len(self.latest_files) == 1:
@@ -44,6 +58,7 @@ class MyHandler(FileSystemEventHandler):
     def handle_latest_files(self):
         global MovingisDone
         global FolderPath
+      
         
         timestamp = time.strftime("%Y%m%d%H%M%S")
         obj_folder_name = f"Folder_{timestamp}"
@@ -60,6 +75,7 @@ class MyHandler(FileSystemEventHandler):
             destination_path = os.path.join(obj_folder_path, os.path.basename(file_to_move))
             shutil.move(file_to_move, destination_path)
             print(f"Moved {os.path.basename(file_to_move)} to {obj_folder_name}")
+          
 
         # Clear the list of latest files after moving
         self.latest_files.clear()
@@ -98,6 +114,9 @@ def zip_folder_with_delay(folder_path, output_zip, delay=3):
 
 
 def upload_file_to_server( local_file_path,server_ip = '34.106.250.143', server_port=22):
+    global modelId
+    
+    
     try:
         # 創建SSH客戶端對象
         ssh = paramiko.SSHClient()
@@ -125,7 +144,7 @@ def upload_file_to_server( local_file_path,server_ip = '34.106.250.143', server_
         uploaded_url = f'http://{server_ip}/upload/{os.path.basename(fileName)}'  # Construct the uploaded URL
         print(f'文件 {local_file_path} 已成功上傳到伺服器 {server_ip} 的 {remote_file_path}。')
         print(f'下載網址: {uploaded_url}')
-        send_osc_message(VRip, 1337, "/GenrateModel", uploaded_url)
+        #send_osc_message(VRip, 1337, "/GenrateModel",[modelId,uploaded_url])
         
         return uploaded_url  # Return the uploaded URL as a string
     except Exception as e:
@@ -146,9 +165,34 @@ def initialize_observer(path, event_handler):
 
     return observer, observer_thread
 
+def filter_handler(address, *args):
+    global UrlId
+
+    if address == '/updateID':
+        UrlId=args[0]
+        print(args)
+
+    print(f"{address}: {args}")
+
+
 if __name__ == "__main__":
+
     path_to_watch_files = "C:/UnityProject\ShapE\Models/"
+    
+    
+    # dispatcher = Dispatcher()
+    # dispatcher.map("/updateID", filter_handler)
+
+
+    # server = osc_server.ThreadingOSCUDPServer(
+    #   ('127.0.0.1',6161), dispatcher)
+    # print("Serving on {}".format(server.server_address))
+    # print("Reality Editor pipeline server is On/Press Esc to exit")
+    
+    
     event_handler_files = MyHandler()
+    
+    
 
     observer_files, observer_thread_files = initialize_observer(path_to_watch_files, event_handler_files)
 
@@ -157,8 +201,8 @@ if __name__ == "__main__":
             time.sleep(1)
             if(MovingisDone):
                 print("start Zip")
-                zip_folder_with_delay(FolderPath, "model.zip")
-                
+                zip_folder_with_delay(FolderPath, UrlId+".zip")
+                #zip_folder_with_delay(FolderPath, "model.zip")
                 
                 
     except KeyboardInterrupt:

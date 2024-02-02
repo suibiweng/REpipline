@@ -59,6 +59,7 @@ def WsMessageProcessing(message):
     prompt=datas[2]
     
     
+    
     global procesingisRunning
     global runingMethod
     global argsarray
@@ -70,7 +71,7 @@ def WsMessageProcessing(message):
         procesingisRunning = True
         runingMethod = 0
         argsarray = prompt
-        StartGenerateModel(objid,prompt)
+        #StartGenerateModel(objid,prompt)
     elif address == '/InstructNerfGenerateModel':
         print("You selected option 2")
     elif address == '/ScanModel':
@@ -153,7 +154,7 @@ def filter_handler(address, *args):
         procesingisRunning = True
         runingMethod = 0
         argsarray = args
-        StartGenerateModel(args[0], args[1])
+        StartGenerateModel(args[0], args[1],args[2])
     elif address == '/InstructNerfGenerateModel':
         print("You selected option 2")
     elif address == '/ScanModel':
@@ -202,10 +203,10 @@ def kill(proc_pid):
         
         
 
-def StartGenerateModel(id, prompt):
+def StartGenerateModel(id, prompt,urlid):
     global process
     global currentpid
-    send_osc_message('127.0.0.1', 6161, "updateID", id)
+    send_osc_message('127.0.0.1', 6161, "updateID", urlid)
     try:
         # Use subprocess to run the command in the shell
         #subprocess.run('conda activate NeRFStudio', shell=True, check=True)

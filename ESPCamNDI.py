@@ -19,6 +19,17 @@ from watchdog.events import FileSystemEventHandler
 import NDIlib as ndi
 
 
+
+class filecrateHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        if event.is_directory:
+            return
+
+        # Check if the created file is "transform.json"
+        if event.src_path.endswith("transform.json"):
+            print(f"File 'transform.json' has been created at {event.src_path}")
+
+
 '''
 INFO SECTION
 - if you want to monitor raw parameters of ESP32CAM, open the browser and go to http://192.168.x.x/status
@@ -41,7 +52,7 @@ def filter_handler(address, *args):
 # face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_alt.xml') # insert the full path to haarcascade file if you encounter any problem
 saveImageName = "test.jpg"
 saveImageSwitch = False
-imgPath = "1"
+imgPath = ""
 
 # sharedinfo = {
 #     "saveimagename": "test.jpg",
@@ -192,93 +203,148 @@ class SubdirHandler(FileSystemEventHandler):
         if not event.is_directory and event.src_path.endswith(self.target_file):
             print(f"File created: {event.src_path}")
 
+def processData(path):
     
+    ProcessCommand = f"python .\scripts\colmap2nerf.py --run_colmap --images {path} --out {path}\transforms.json"
+        # Run the trainCommand subprocess and capture its output0101
+    train_process = subprocess.Popen(ProcessCommand, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    train_process_stdout, _ = train_process.communicate()
+    print("")
+
+
+def instNGP(nerfTransform):
+    ProcessCommand = f"python ./scripts/run.py --training_data .\data\nerf\Bunny\transforms.json --save_snapshot .\data\Bunny-50-35000.ingp --n_steps 2000 --save_mesh .\data\Bunny.obj"
+        # Run the trainCommand subprocess and capture its output0101
+    train_process = subprocess.Popen(ProcessCommand, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    train_process_stdout, _ = train_process.communicate()
+
+
+def activate_anaconda_environment(environment_name):
+    try:
+        # Construct the command to activate the Anaconda environment
+        command = f"conda activate {environment_name}"
+
+        # Use subprocess to run the command in the shell
+        subprocess.run(command, shell=True, check=True)
+
+        print(f"Activated Anaconda environment: {environment_name}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error activating Anaconda environment: {e}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
 # Function to handle OSC messages
 def default_handler(address, *args):
     if address == "/start":
         print("start")
         obj = time.gmtime()
         global imgPath
-        imgPath ="output"+"/"+ str(obj.tm_mon) + str(obj.tm_mday) + str(obj.tm_hour) + str(obj.tm_min)
+        imgPath ="/output/"+ str(obj.tm_mon) + str(obj.tm_mday) + str(obj.tm_hour) + str(obj.tm_min)
         folder_path = Path(imgPath)
-        if not folder_path.exists():
-            folder_path.mkdir()
-            print(f"Folder '{imgPath}' created successfully.")
-        else:
-            print(f"Folder '{imgPath}' already exists.")
+        
+        
+        print(folder_path)
+        folder_path.mkdir(parents=True, exist_ok=True)
+        # if not folder_path.exists():
+        #     folder_path.mkdir()
+        #     print(f"Folder '{imgPath}' created successfully.")
+        # else:
+        #     print(f"Folder '{imgPath}' already exists.")
 
     # store the info
     # on receiving message, take a photo
     if address == "/imagePath":
-        saveFile = open(imgPath+"/data.txt", "w")
+        #saveFile = open(imgPath+"/data.txt", "w")
         print("a new frame")
         global saveImageName
         saveImageName = args[0]
         
 
-        saveFile.write(saveImageName + "\n");
-        saveFile.write(args[1])
+        #saveFile.write(saveImageName + "\n")
+        #saveFile.write(args[1])
         
         print(saveImageName)
         global saveImageSwitch
         saveImageSwitch = True
-        saveFile.close();
+        #saveFile.close()
     
     if address == "/end":
         print("finish recording")
         # for debugging
-        imgPath = "output/10191312"        
+        # imgPath = "output/10191312"        
 
-        outputImgPath = imgPath+"Out"
+        # outputImgPath = imgPath+"Out"
         # # Define the command you want to run within the Conda environment
         # command = f"ns-process-data images --data {imgPath} --output-dir {outputImgPath}"
         # subprocess.run(command, shell=True)
         # print("preprocess data done")
         
-        trainCommand = f"ns-train nerfacto --data {outputImgPath}"
-        # Run the trainCommand subprocess and capture its output
-        train_process = subprocess.Popen(trainCommand, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        train_process_stdout, _ = train_process.communicate()
+        # trainCommand = f"ns-train nerfacto --data {outputImgPath}"
+        # # Run the trainCommand subprocess and capture its output
+        # train_process = subprocess.Popen(trainCommand, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # train_process_stdout, _ = train_process.communicate()
 
-        # Parse the output to find the most recently created directory
-        output_lines = train_process_stdout.decode("utf-8").splitlines()
-        most_recent_directory = None
-        for line in output_lines:
-            if line.startswith("    timestamp"):
-                print(line)
-                most_recent_directory = line[len("    timestamp")+2:]
-                most_recent_directory = most_recent_directory[:-2]
-                print(most_recent_directory)
-                break
+        # # Parse the output to find the most recently created directory
+        # output_lines = train_process_stdout.decode("utf-8").splitlines()
+        # most_recent_directory = None
+        # for line in output_lines:
+        #     if line.startswith("    timestamp"):
+        #         print(line)
+        #         most_recent_directory = line[len("    timestamp")+2:]
+        #         most_recent_directory = most_recent_directory[:-2]
+        #         print(most_recent_directory)
+        #         break
 
-        if most_recent_directory:
-            most_recent_directory = "outputs/" + outputImgPath[7:] + "/nerfacto/" + most_recent_directory
-            print(most_recent_directory)
-            most_recent_directory = os.path.abspath(most_recent_directory)
+        # if most_recent_directory:
+        #     most_recent_directory = "outputs/" + outputImgPath[7:] + "/nerfacto/" + most_recent_directory
+        #     print(most_recent_directory)
+        #     most_recent_directory = os.path.abspath(most_recent_directory)
 
-            # Start monitoring the most recently created directory
-            event_handler = MyHandler(train_process)
-            observer = Observer()
-            observer.schedule(event_handler, path=most_recent_directory, recursive=False)
-            observer.start()
+        #     # Start monitoring the most recently created directory
+        #     event_handler = MyHandler(train_process)
+        #     observer = Observer()
+        #     observer.schedule(event_handler, path=most_recent_directory, recursive=False)
+        #     observer.start()
 
-            # Start monitoring for the "text.txt" file in the subdirectory
-            subdirectory = os.path.join(most_recent_directory, "subdirectory_name")  # Replace "subdirectory_name" with the actual subdirectory name
-            sub_event_handler = SubdirHandler("dataparser_transforms.json")
-            sub_observer = Observer()
-            sub_observer.schedule(sub_event_handler, path=subdirectory, recursive=False)
-            sub_observer.start()
+        #     # Start monitoring for the "text.txt" file in the subdirectory
+        #     subdirectory = os.path.join(most_recent_directory, "subdirectory_name")  # Replace "subdirectory_name" with the actual subdirectory name
+        #     sub_event_handler = SubdirHandler("dataparser_transforms.json")
+        #     sub_observer = Observer()
+        #     sub_observer.schedule(sub_event_handler, path=subdirectory, recursive=False)
+        #     sub_observer.start()
 
-            try:
-                while train_process.poll() is None:
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                observer.stop()
-                observer.join()
-                sub_observer.stop()
-                sub_observer.join()
-        else:
-            print("No directory found to monitor.")
+        #     try:
+        #         while train_process.poll() is None:
+        #             time.sleep(1)
+        #     except KeyboardInterrupt:
+        #         observer.stop()
+        #         observer.join()
+        #         sub_observer.stop()
+        #         sub_observer.join()
+        # else:
+        #     print("No directory found to monitor.")
+        
+def oscinit():
+    global osc_server
+    dispatcherosc = Dispatcher()
+   # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
+    osc_server=osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)
+    OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
+    OSCserver_thread.start()
+    
+    
+    
+    #  OSCserver = osc_server.ForkingOSCUDPServer((OSCaddress, OSCport), dispatcher)
+    # OSCserver_thread = threading.Thread(target=OSCserver.serve_forever)
+    # OSCserver_thread.start()
+    print("Serving on {}".format(osc_server.server_address))
+    print("Reality Editor pipeline server is On/Press Esc to exit")
+   # osc_server.serve_forever()
+
+    dispatcherosc.map("/filter", print)
+    dispatcherosc.set_default_handler(default_handler)
+    
 
             
 
@@ -293,28 +359,41 @@ if __name__ == '__main__':
     # server.serve_forever()
     # dispatcher = Dispatcher()
     # dispatcher.map("/PromtGenerateModel", filter_handler)
-
-    # Create a thread for the camera
+    
+    
     main_thread = threading.Thread(target=main_loop)
     main_thread.start()
+    oscinit()
+    
+    
+    
+    
+    #dispatcherosc = Dispatcher()
+
+
+
+    # Create an OSC server thread
+    # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
+    
+    # print("Serving on {}".format(osc_server.server_address))
+    # print("Reality Editor pipeline server is On/Press Esc to exit")
+    # osc_server.serve_forever()
+    
+    # dispatcherosc.map("/filter", print)
+    # dispatcherosc.set_default_handler(default_handler)
+
+    # Create a thread for the camera
+
     
 
 
     # osc
-    dispatcherosc = Dispatcher()
-    dispatcherosc.map("/filter", print)
-    dispatcherosc.set_default_handler(default_handler)
 
-
-    # Create an OSC server thread
-    osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
-    osc_server.serve_forever()
     
     
 
 
     # Wait for the main thread to finish (you can continue with other tasks here)
-    main_thread.join()
 
 
 
