@@ -18,6 +18,8 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import NDIlib as ndi
 
+from PIL import Image
+
 
 
 class filecrateHandler(FileSystemEventHandler):
@@ -60,16 +62,33 @@ imgPath = ""
 # }
 
         
-def capture_frame_and_save(video_capture, output_filename):
+# def capture_frame_and_save(video_capture, output_filename):
 
-        # obj = time.gmtime()
-        # path = "img/" + str(obj.tm_mon) + str(obj.tm_mday) + str(obj.tm_hour) + str(obj.tm_min)
-        # print(path)
-        global imgPath
-        myImgPath = imgPath + "/" +output_filename
-        print(myImgPath)
-        cv2.imwrite(myImgPath, video_capture)
-        print(f"Frame saved")
+#         # obj = time.gmtime()
+#         # path = "img/" + str(obj.tm_mon) + str(obj.tm_mday) + str(obj.tm_hour) + str(obj.tm_min)
+#         # print(path)
+#         global imgPath
+#         myImgPath = imgPath + "/" +output_filename
+#         print(myImgPath)
+#         cv2.imwrite( myImgPath, video_capture)
+#         print(f"Frame saved")
+
+
+def capture_frame_and_save(frame, output_filename):
+    global imgPath
+    myImgPath =  output_filename
+    print(myImgPath)
+    
+    # Convert frame to RGB format
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    
+    # Convert frame to PIL Image
+    pil_image = Image.fromarray(frame_rgb)
+    
+    # Save the PIL Image as JPEG
+    pil_image.save(myImgPath)
+    
+    print(f"Frame saved")
   
 
 def set_resolution(url: str, index: int=10, verbose: bool=False):
@@ -236,16 +255,18 @@ def activate_anaconda_environment(environment_name):
 
 # Function to handle OSC messages
 def default_handler(address, *args):
-    if address == "/start":
-        print("start")
-        obj = time.gmtime()
-        global imgPath
-        imgPath ="/output/"+ str(obj.tm_mon) + str(obj.tm_mday) + str(obj.tm_hour) + str(obj.tm_min)
-        folder_path = Path(imgPath)
-        
-        
-        print(folder_path)
-        folder_path.mkdir(parents=True, exist_ok=True)
+    global imgPath
+    global saveImageName
+  
+    if address == "/startRecord":
+        print("start to")
+ 
+        imgPath ="./output/"+args[0]+"/"  
+        # Create a Path object
+        imgPath_obj = Path(imgPath)
+
+        # Create the directory
+        imgPath_obj.mkdir(parents=True, exist_ok=True)
         # if not folder_path.exists():
         #     folder_path.mkdir()
         #     print(f"Folder '{imgPath}' created successfully.")
@@ -257,8 +278,9 @@ def default_handler(address, *args):
     if address == "/imagePath":
         #saveFile = open(imgPath+"/data.txt", "w")
         print("a new frame")
-        global saveImageName
-        saveImageName = args[0]
+        print(args[0])
+
+        saveImageName = imgPath+args[0]
         
 
         #saveFile.write(saveImageName + "\n")
@@ -269,67 +291,18 @@ def default_handler(address, *args):
         saveImageSwitch = True
         #saveFile.close()
     
-    if address == "/end":
+    if address == "/endRecord":
         print("finish recording")
-        # for debugging
-        # imgPath = "output/10191312"        
-
-        # outputImgPath = imgPath+"Out"
-        # # Define the command you want to run within the Conda environment
-        # command = f"ns-process-data images --data {imgPath} --output-dir {outputImgPath}"
-        # subprocess.run(command, shell=True)
-        # print("preprocess data done")
         
-        # trainCommand = f"ns-train nerfacto --data {outputImgPath}"
-        # # Run the trainCommand subprocess and capture its output
-        # train_process = subprocess.Popen(trainCommand, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        # train_process_stdout, _ = train_process.communicate()
+        saveImageName="" 
 
-        # # Parse the output to find the most recently created directory
-        # output_lines = train_process_stdout.decode("utf-8").splitlines()
-        # most_recent_directory = None
-        # for line in output_lines:
-        #     if line.startswith("    timestamp"):
-        #         print(line)
-        #         most_recent_directory = line[len("    timestamp")+2:]
-        #         most_recent_directory = most_recent_directory[:-2]
-        #         print(most_recent_directory)
-        #         break
 
-        # if most_recent_directory:
-        #     most_recent_directory = "outputs/" + outputImgPath[7:] + "/nerfacto/" + most_recent_directory
-        #     print(most_recent_directory)
-        #     most_recent_directory = os.path.abspath(most_recent_directory)
-
-        #     # Start monitoring the most recently created directory
-        #     event_handler = MyHandler(train_process)
-        #     observer = Observer()
-        #     observer.schedule(event_handler, path=most_recent_directory, recursive=False)
-        #     observer.start()
-
-        #     # Start monitoring for the "text.txt" file in the subdirectory
-        #     subdirectory = os.path.join(most_recent_directory, "subdirectory_name")  # Replace "subdirectory_name" with the actual subdirectory name
-        #     sub_event_handler = SubdirHandler("dataparser_transforms.json")
-        #     sub_observer = Observer()
-        #     sub_observer.schedule(sub_event_handler, path=subdirectory, recursive=False)
-        #     sub_observer.start()
-
-        #     try:
-        #         while train_process.poll() is None:
-        #             time.sleep(1)
-        #     except KeyboardInterrupt:
-        #         observer.stop()
-        #         observer.join()
-        #         sub_observer.stop()
-        #         sub_observer.join()
-        # else:
-        #     print("No directory found to monitor.")
         
 def oscinit():
     global osc_server
     dispatcherosc = Dispatcher()
    # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
-    osc_server=osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)
+    osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc)
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
     
@@ -339,7 +312,6 @@ def oscinit():
     # OSCserver_thread = threading.Thread(target=OSCserver.serve_forever)
     # OSCserver_thread.start()
     print("Serving on {}".format(osc_server.server_address))
-    print("Reality Editor pipeline server is On/Press Esc to exit")
    # osc_server.serve_forever()
 
     dispatcherosc.map("/filter", print)
@@ -398,5 +370,5 @@ if __name__ == '__main__':
 
 
 
-    cv2.destroyallwindows()
+    #cv2.destroyallwindows()
     #cap.release()
