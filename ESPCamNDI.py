@@ -345,7 +345,28 @@ def default_handler(address, *args):
             modifytheMesh(args[1],args[2],shape_path)
         
         
-    
+    if address == "/promptGeneratedModel":
+        URLID=args[1]
+        prompt=args[2]
+
+        command = f"python shapeRuntime.py {prompt}"
+        # Execute the command
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+
+        # Check if the command was executed successfully
+        if result.returncode == 0:
+            print("Command executed successfully.")
+
+            # Optional: Print stdout
+            if result.stdout:
+                print("Output:", result.stdout)
+        else:
+            print("Command failed with return code", result.returncode)
+            
+            # Print stderr for error
+            if result.stderr:
+                print("Error:", result.stderr)
+
     
     if address =="/NerfTest":
         print("TestNerf")
@@ -402,12 +423,7 @@ def find_file(filename, search_path, search_subdirs=True):
         if filename in files:
             return os.path.join(root, filename)
     return None
-    
-    
-    
-    
-    
-    
+        
     
 def modifytheMesh(prompt,UID,shapePth):
     #result = subprocess.run(f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\TracktheTarget.py --video_path  {output_dir}\\{str(video_path)} --coordinates {int(coordinates[0])} {int(coordinates[1])} --output_dir {output_dir}")
