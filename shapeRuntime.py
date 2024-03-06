@@ -1,19 +1,20 @@
 import requests
 import base64
 import os
+import sys
 
 class SHAPERuntime:
     def __init__(self):
         self.prompt = ""
         self.steps = 64
         self.cfg = 20
-        self.directory_path = ""
+        self.directory_path = "output" #do not use / at the end (check line 70)
         self.model_name = ""
         self.format = "OBJ"
         self.post_flag = False
         self.post_progress = 0
         self.text_to_mesh_id = "nejnwmcwvhcax9"
-        self.invoice = ""
+        self.invoice = "20067068964066"
         self.model_id = ""
         self.user_id = ""
         self.model_downloader = None
@@ -32,7 +33,9 @@ class SHAPERuntime:
 
     def debug_sending(self):
         self.prompt = input("Enter prompt: ")
-        self.send_prompt("12", self.prompt, "XXX")
+        # self.send_prompt("12", self.prompt, "XXX")
+        self.post(f"https://{self.text_to_mesh_id}-5000.proxy.runpod.net/data", f'{{"prompt":"{self.prompt}","steps":"{self.steps}","cfg":"{self.cfg}","invoice":"{self.invoice}","fileFormat":"{self.format}"}}')
+        print("Sent")
 
     def update(self):
         pass
@@ -64,7 +67,11 @@ class SHAPERuntime:
             else:
                 self.model_name = self.model_id
                 model_data = base64.b64decode(response.text)
-                with open(f"{self.directory_path}{self.model_name}.{self.format}", "wb") as model_file:
+                dpath = f"{self.directory_path}/{self.model_name}"
+                if not os.path.exists(dpath):
+                    os.makedirs(dpath)  # create directory if it doesn't exist 
+                                             
+                with open(f"{dpath}/{self.model_name}.{self.format}", "wb") as model_file:
                     model_file.write(model_data)
                 print(f"Inference Successful: Please find the model in the {self.directory_path}")
                 self.broadcast_message("Done")
@@ -87,10 +94,13 @@ class SHAPERuntime:
 
 
 # Example Usage
-# shaperuntime_instance = SHAPERuntime()
-# shaperuntime_instance.debug_sending()
-
-if __name__ == "__main__":
+args = sys.argv
+if len(args) > 1:
+    print('args: ', args)
+    prompt = args[1]
+    model_id = args[2]
     shaperuntime_instance = SHAPERuntime()
-    user_prompt = sys.argv[1] if len(sys.argv) > 1 else ""
-    shaperuntime_instance.send_prompt("12", user_prompt, "XXX")
+    shaperuntime_instance.send_prompt('', prompt, model_id)
+else:
+    print("Invalid arguments")
+
