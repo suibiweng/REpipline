@@ -100,36 +100,6 @@ def upload_file_to_server( local_file_path,server_ip = '34.106.250.143', server_
         # 關閉SSH連接
         ssh.close()
 
-# class MyHandler(FileSystemEventHandler):
-#     def on_created(self, event):
-#         if event.is_directory:
-#             return
-
-#         print(f"New file created: {event.src_path}")
-#         # Extract the file name from the path
-#         file_name = event.src_path.split("\\")[-1]
-
-#         # Use the file name in the variables
-#         updated_exp_name = file_name.split(".")[0]
-#         updated_shape_path = event.src_path
-#         print("file name-", updated_exp_name)
-#         print("file name-", updated_shape_path)
-
-#         # Create updated example_data with new file name and path
-#         updated_example_data = create_example_data(
-#             exp_name=updated_exp_name,
-#             text='A Wood Cup, {} view',
-#             append_direction=True,
-#             shape_path=updated_shape_path,
-#             seed=3
-#         )
-
-#         # Generate YAML
-#         yaml_content = generate_yaml(updated_example_data)
-
-#         # Save YAML to a file
-#         if yaml_content:
-#             save_to_yaml(yaml_content, filename='textures/output.yaml')
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate and process a YAML file based on command line arguments.")

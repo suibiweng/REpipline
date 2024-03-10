@@ -2,15 +2,16 @@ import requests
 import base64
 import os
 import sys
+import argparse
 
 class SHAPERuntime:
     def __init__(self):
         self.prompt = ""
         self.steps = 64
         self.cfg = 20
-        self.directory_path = "output" #do not use / at the end (check line 70)
+        self.directory_path = "./output" #do not use / at the end (check line 70)
         self.model_name = ""
-        self.format = "OBJ"
+        self.format = "obj"
         self.post_flag = False
         self.post_progress = 0
         self.text_to_mesh_id = "nejnwmcwvhcax9"
@@ -65,9 +66,9 @@ class SHAPERuntime:
             elif response.text == "Limit Reached":
                 print("It seems that you may have reached the limit. To check your character usage, please click on the Status button. Please wait until the 1st of the next month to get a renewed character count. Thank you for using Shap-E for Unity.")
             else:
-                self.model_name = self.model_id
+                self.model_name = self.model_id+"_generated"
                 model_data = base64.b64decode(response.text)
-                dpath = f"{self.directory_path}/{self.model_name}"
+                dpath = f"{self.directory_path}/{self.model_id}"
                 if not os.path.exists(dpath):
                     os.makedirs(dpath)  # create directory if it doesn't exist 
                                              
@@ -93,14 +94,24 @@ class SHAPERuntime:
         pass  # Implement your broadcasting logic here
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate and process a YAML file based on command line arguments.")
+    parser.add_argument("--URID", required=True, help="Unique Resource Identifier")
+    parser.add_argument("--prompt", required=True, help="Text prompt for guide")
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    
 # Example Usage
-args = sys.argv
-if len(args) > 1:
-    print('args: ', args)
-    prompt = args[1]
-    model_id = args[2]
+    args = parse_args()
+
+    
+    prompt = args.prompt
+    model_id = args.URID
     shaperuntime_instance = SHAPERuntime()
+    shaperuntime_instance.start()
+    print("Start Generating \"prompt\" ")   
     shaperuntime_instance.send_prompt('', prompt, model_id)
-else:
-    print("Invalid arguments")
+ 
 

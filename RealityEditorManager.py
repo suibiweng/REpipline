@@ -24,29 +24,8 @@ import json
 
 
 
-class filecrateHandler(FileSystemEventHandler):
-    def on_created(self, event):
-        if event.is_directory:
-            return
-
-        # Check if the created file is "transform.json"
-        if event.src_path.endswith("transform.json"):
-            print(f"File 'transform.json' has been created at {event.src_path}")
-
-
-'''
-INFO SECTION
-- if you want to monitor raw parameters of ESP32CAM, open the browser and go to http://192.168.x.x/status
-- command can be sent through an HTTP get composed in the following way http://192.168.x.x/control?var=VARIABLE_NAME&val=VALUE (check varname and value in status)
-'''
-def filter_handler(address, *args):
-    if address == '/TakePhoto':
-        print(args)
-
-    print(f"{address}: {args}")
-
-
-
+Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
+InstantNGP_MoudlePath = "C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\"
     
 
 
@@ -80,33 +59,6 @@ def capture_frame_and_save(frame, output_filename):
     print(f"Frame saved")
   
 
-def set_resolution(url: str, index: int=10, verbose: bool=False):
-    try:
-        if verbose:
-            resolutions = "10: UXGA(1600x1200)\n9: SXGA(1280x1024)\n8: XGA(1024x768)\n7: SVGA(800x600)\n6: VGA(640x480)\n5: CIF(400x296)\n4: QVGA(320x240)\n3: HQVGA(240x176)\n0: QQVGA(160x120)"
-            print("available resolutions\n{}".format(resolutions))
-
-        if index in [10, 9, 8, 7, 6, 5, 4, 3, 0]:
-            requests.get(url + "/control?var=framesize&val={}".format(index))
-        else:
-            print("Wrong index")
-    except:
-        print("SET_RESOLUTION: something went wrong")
-
-def set_quality(url: str, value: int=1, verbose: bool=False):
-    try:
-        if value >= 10 and value <=63:
-            requests.get(url + "/control?var=quality&val={}".format(value))
-    except:
-        print("SET_QUALITY: something went wrong")
-
-def set_awb(url: str, awb: int=1):
-    try:
-        awb = not awb
-        requests.get(url + "/control?var=awb&val={}".format(1 if awb else 0))
-    except:
-        print("SET_QUALITY: something went wrong")
-    return awb
 
 
 
@@ -173,53 +125,9 @@ def main_loop():
 
             key = cv2.waitKey(1)
             
+            if key == 27:
+                 break
             
-                
-            if key == ord('r'):
-                idx = int(input("Select resolution index: "))
-                set_resolution(URL, index=idx, verbose=True)
-
-            elif key == ord('q'):
-                val = int(input("Set quality (10 - 63): "))
-                set_quality(URL, value=val)
-
-            elif key == ord('a'):
-                AWB = set_awb(URL, AWB)
-
-            elif key == ord('c'):
-                output_filename = input("Enter the output filename (e.g., captured_frame.jpg): ")
-                capture_frame_and_save(frame, output_filename)
-
-            elif key == 27:
-                break
-            
-class MyHandler(FileSystemEventHandler):
-    def __init__(self, subprocess_to_terminate):
-        self.subprocess = subprocess_to_terminate
-
-    def on_created(self, event):
-        if event.is_directory:
-            print(f"Directory created: {event.src_path}")
-            print("Terminating trainCommand subprocess...")
-            self.subprocess.send_signal(subprocess.CTRL_C_EVENT)
-
-class SubdirHandler(FileSystemEventHandler):
-    def __init__(self, target_file):
-        self.target_file = target_file
-
-    def on_created(self, event):
-        if not event.is_directory and event.src_path.endswith(self.target_file):
-            print(f"File created: {event.src_path}")
-
-def ProcessBackandFront(path):
-    
-    ProcessCommand= f"python MaskAndBk.py --input_img {path} --point_labels 1 --dilate_kernel_size 15 --output_dir {path} --sam_model_type \"vit_h\" --sam_ckpt ./pretrained_models/sam_vit_h_4b8939.pth --lama_config ./lama/configs/prediction/default.yaml --lama_ckpt ./pretrained_models/big-lama"
-    
-  #  ProcessCommand = f"python .\scripts\colmap2nerf.py --run_colmap --images {path} --out {path}\transforms.json"
-        # Run the trainCommand subprocess and capture its output0101
-    train_process = subprocess.Popen(ProcessCommand, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    train_process_stdout, _ = train_process.communicate()
-    print("")
 
 
 
@@ -274,13 +182,18 @@ def default_handler(address, *args):
     global serials_data
     global URLid
     global picCount
+    
+    #Test Message Repeat sending
+    print("receive:"+address)
+    print(args)
+    
+    
   
     if address == "/startRecord":
         
         print("start to")
         serials_data = []
         imgPath ="./output/"+args[0]+"/"  
-        
         URLid=args[0]
         # Create a Path object
         imgPath_obj = Path(imgPath)
@@ -321,22 +234,21 @@ def default_handler(address, *args):
     if address == "/endRecord":
         print("finish recording")
        # store_serials_data(serials_data, jsonFilename)
-      # testdata
+       # testdata
       
-        URLid="20240229125610"
-        picCount=32
-        serials_data.append({"Filename": "1", "Coordinates":  [282.44,231.3]})
+        # URLid="20240229125610"
+        # picCount=32
+        # serials_data.append({"Filename": "1", "Coordinates":  [282.44,231.3]})
         
         
         testpath = "./output/"+URLid
         testvideoName=URLid+".mp4"
         
-        
         ffmpegCall(testpath, testvideoName, picCount)       
         
         saveImageName="" 
         jsonFilename=""
-        #serials_data = []
+        serials_data = []
         picCount=0
     if address =="/InstructModify":
         shape_path=find_file(f"{args[2]}_scaned.obj",".\\output")
@@ -345,35 +257,18 @@ def default_handler(address, *args):
             modifytheMesh(args[1],args[2],shape_path)
         
         
-    if address == "/promptGeneratedModel":
-        URLID=args[1]
-        prompt=args[2]
+    if address == "/PromtGenerateModel":
+        URLID=args[2]
+        prompt=args[1]
+        GenratedModl(URLID,prompt)
 
-        command = f"python shapeRuntime.py {prompt}"
-        # Execute the command
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
 
-        # Check if the command was executed successfully
-        if result.returncode == 0:
-            print("Command executed successfully.")
-
-            # Optional: Print stdout
-            if result.stdout:
-                print("Output:", result.stdout)
-        else:
-            print("Command failed with return code", result.returncode)
-            
-            # Print stderr for error
-            if result.stderr:
-                print("Error:", result.stderr)
-
-    
     if address =="/NerfTest":
         print("TestNerf")
         
         URLid="20240229125610"
+       
         testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
-        
         testpath= os.path.abspath(testpath)
         
         BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
@@ -385,9 +280,7 @@ def default_handler(address, *args):
            
         if(ObjJsonPath != None):
             objdone=NerfObj (ObjJsonPath,ObjPath,"target")
-     
-     
-     
+    
      
         if(objdone):
             BKJsonPath=ColmapObj(BKfolderPath)
@@ -398,14 +291,38 @@ def default_handler(address, *args):
         
         # if(Bkdone):
         
-        
-        
-            
-            
-            
         #     zip_file_with_delay(get_obj_file(BKfolderPath),URLid+"_scaned_background.zip")
         #     time.sleep(10)
         #     zip_file_with_delay(get_obj_file(ObjPath),URLid+"_target.zip")
+
+def GenratedModl(URLID,prompt):
+    
+    #     parser.add_argument("--URID", required=True, help="Unique Resource Identifier")
+    #     parser.add_argument("--prompt", required=True, help="Text prompt for guide")
+    
+        command = f"python shapeRuntime.py --prompt \"{prompt}\" --URID {URLID}"
+        # Execute the command
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+
+        # Check if the command was executed successfully
+        if result.returncode == 0:
+            print("Command executed successfully.")
+            time.sleep(3)
+            zip_file_with_delay(f"./output/{URLID}/{URLID}_generated.obj", f"{URLID}_generated.zip", delay=3)
+            
+
+            # Optional: Print stdout
+            if result.stdout:
+                print("Output:", result.stdout)
+        else:
+            print("Command failed with return code", result.returncode)
+            
+            # Print stderr for error
+            if result.stderr:
+                print("Error:", result.stderr)
+        
+
+
         
 def find_file(filename, search_path, search_subdirs=True):
     """
@@ -431,11 +348,6 @@ def modifytheMesh(prompt,UID,shapePth):
     # Check if the command was executed successfully
     if result.returncode == 0:
         print("Command executed successfully.")
-       
-        
-        
-
-        
         # Optional: Print stdout
         if result.stdout:
             print("Output:", result.stdout)
@@ -541,8 +453,10 @@ def ffmpegCall(input_folder, output_video, frame_rate=30):
         print(f"An error occurred: {e}")
 
 
+
 def run_tracking(video_path, coordinates, output_dir):
     global URLid
+    global Inpainting_Anything_ModulePath
     #print(output_dir)
     """
     Executes the object tracking script with the given parameters.
@@ -572,7 +486,7 @@ def run_tracking(video_path, coordinates, output_dir):
 
 
     # Execute the command
-    result = subprocess.run(f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\TracktheTarget.py --video_path  {output_dir}\\{str(video_path)} --coordinates {int(coordinates[0])} {int(coordinates[1])} --output_dir {output_dir}")
+    result = subprocess.run(f"python {Inpainting_Anything_ModulePath}TracktheTarget.py --video_path  {output_dir}\\{str(video_path)} --coordinates {int(coordinates[0])} {int(coordinates[1])} --output_dir {output_dir}")
 
     # Check if the command was executed successfully
     if result.returncode == 0:
@@ -599,38 +513,62 @@ def run_tracking(video_path, coordinates, output_dir):
     
 def run_inpainting(input_folder, output_dir):
     global URLid
+    global Inpainting_Anything_ModulePath
     #print(output_dir)
     jsonFilepath=input_folder+"\\"+URLid+".json"
 
   
     # Execute the command
-    result = subprocess.run(f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\MaskAndBk.py --input_img {input_folder} --coordsJson {jsonFilepath} --point_labels 1 --dilate_kernel_size 15 --output_dir {output_dir} --sam_model_type \"vit_h\" --sam_ckpt C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\pretrained_models\\sam_vit_h_4b8939.pth --lama_config C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\lama\\configs\\prediction\\default.yaml --lama_ckpt  C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\pretrained_models/big-lama ")
+    result = subprocess.run(f"python {Inpainting_Anything_ModulePath}MaskAndBk.py --input_img {input_folder} --coordsJson {jsonFilepath} --point_labels 1 --dilate_kernel_size 15 --output_dir {output_dir} --sam_model_type \"vit_h\" --sam_ckpt C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\pretrained_models\\sam_vit_h_4b8939.pth --lama_config C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\lama\\configs\\prediction\\default.yaml --lama_ckpt  C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\pretrained_models/big-lama ")
 
     # Check if the command was executed successfully
     if result.returncode == 0:
         print("Command executed successfully.")
+        
         time.sleep(2)
-        BKfolderPath=input_folder+"\\"+"GenerateImages\\images\\"
-        ObjPath=input_folder
+        
+        
+        
+        
+        
+        URLid="20240229125610"
+       
+        testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
+        testpath= os.path.abspath(testpath)
+        
+        BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
+        
+        BKfolderPath=os.path.abspath(BKfolderPath)
+        ObjPath=testpath
         
         ObjJsonPath=ColmapObj(ObjPath)
            
         if(ObjJsonPath != None):
             objdone=NerfObj (ObjJsonPath,ObjPath,"target")
-        else:
-            print("Error in colmap")
-            return False
+    
+     
         if(objdone):
             BKJsonPath=ColmapObj(BKfolderPath)
             if(BKJsonPath != None):
                 Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
         
         
+        # BKfolderPath=input_folder+"\\"+"GenerateImages\\images\\"
+        # ObjPath=input_folder
         
-        # if(Bkdone):
-        #     # get_obj_file(BKfolderPath,URLid+"_scaned_background.zip")
-        #     # time.sleep(10)
-        #     # get_obj_file(ObjPath,URLid+"_target.zip")
+        # ObjJsonPath=ColmapObj(ObjPath)
+           
+        # if(ObjJsonPath != None):
+        #     objdone=NerfObj (ObjJsonPath,ObjPath,"target")
+        # else:
+        #     print("Error in colmap")
+        #     return False
+        # if(objdone):
+        #     BKJsonPath=ColmapObj(BKfolderPath)
+        #     if(BKJsonPath != None):
+        #         Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
+        
+        
 
         
 
@@ -647,12 +585,13 @@ def run_inpainting(input_folder, output_dir):
         # Print stderr for error
         if result.stderr:
             print("Error:", result.stderr)
-    
+
 def ColmapObj (input_folder):
     global URLid
+    global InstantNGP_MoudlePath
     #print(output_dir)
     jsonFilepath=input_folder+"\\transform.json"
-    cmd= f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\scripts\\colmap2nerf.py --colmap_matcher exhaustive --run_colmap --aabb_scale 16 --images {input_folder} --out {jsonFilepath} --overwrite"
+    cmd= f"python {InstantNGP_MoudlePath}scripts\\colmap2nerf.py --colmap_matcher exhaustive --run_colmap --aabb_scale 16 --images {input_folder} --out {jsonFilepath} --overwrite"
 
     # Execute the command
     result = subprocess.run(cmd)
@@ -671,8 +610,9 @@ def ColmapObj (input_folder):
        
 def NerfObj (input_json,output_folder,Objtype):
     global URLid
+    global InstantNGP_MoudlePath
     
-    cmd= f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\scripts\\run.py --training_data {input_json} --save_snapshot {output_folder}\\{URLid}_scaned_{Objtype}.ingp --n_steps 2000 --marching_cubes_density_thresh 2.5 --marching_cubes_res 256 --save_mesh {output_folder}\\{URLid}_scaned_{Objtype}.obj" 
+    cmd= f"python {InstantNGP_MoudlePath}scripts\\run.py --training_data {input_json} --save_snapshot {output_folder}\\{URLid}_scaned_{Objtype}.ingp --n_steps 2000 --marching_cubes_density_thresh 2.5 --marching_cubes_res 256 --save_mesh {output_folder}\\{URLid}_scaned_{Objtype}.obj" 
 
    # cmd= f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\scripts\\colmap2nerf.py --colmap_matcher exhaustive --run_colmap --aabb_scale 16 --images {input_folder}--out {jsonFilepath}"
 
@@ -805,13 +745,17 @@ def get_obj_file(directory):
 
 
 
+def load_config(config_file):
+    with open(config_file, 'r') as file:
+        config = json.load(file)
+    return config
 
         
 def oscinit():
     global osc_server
     dispatcherosc = Dispatcher()
-    osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
-    #osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc)
+    # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
+    osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc)
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
     
@@ -831,7 +775,13 @@ def oscinit():
 
 if __name__ == '__main__':
  
+    config_path = './config.json'  # Update this path to where you save your config.json
+    config = load_config(config_path)
+    inpainting_anything_module_path = config['Inpainting_Anything_ModulePath']
+    instant_ngp_module_path = config['InstantNGP_MoudlePath']
     
+    print("Inpainting Module Path:", inpainting_anything_module_path)
+    print("Instant NGP Module Path:", instant_ngp_module_path)
     
     # main_thread = threading.Thread(target=main_loop)
     # main_thread.start()
