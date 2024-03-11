@@ -15,6 +15,8 @@ from pathlib import Path
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import NDIlib as ndi
+import signal
+import keyboard
 
 import pymeshlab
 
@@ -26,6 +28,7 @@ import json
 
 Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
 InstantNGP_MoudlePath = "C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\"
+TexTurePaper_modulePath=""
     
 
 
@@ -84,6 +87,7 @@ def main_loop():
         print('Looking for sources ...')
         ndi.find_wait_for_sources(ndi_find, 1000)
         sources = ndi.find_get_current_sources(ndi_find)
+       
 
     ndi_recv_create = ndi.RecvCreateV3()
     ndi_recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
@@ -233,7 +237,7 @@ def default_handler(address, *args):
     
     if address == "/endRecord":
         print("finish recording")
-       # store_serials_data(serials_data, jsonFilename)
+        store_serials_data(serials_data, jsonFilename)
        # testdata
       
         # URLid="20240229125610"
@@ -248,7 +252,6 @@ def default_handler(address, *args):
         
         saveImageName="" 
         jsonFilename=""
-        serials_data = []
         picCount=0
     if address =="/InstructModify":
         shape_path=find_file(f"{args[2]}_scaned.obj",".\\output")
@@ -263,29 +266,29 @@ def default_handler(address, *args):
         GenratedModl(URLID,prompt)
 
 
-    if address =="/NerfTest":
-        print("TestNerf")
+    # if address =="/NerfTest":
+    #     print("TestNerf")
         
-        URLid="20240229125610"
+    #     URLid="20240229125610"
        
-        testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
-        testpath= os.path.abspath(testpath)
+    #     testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
+    #     testpath= os.path.abspath(testpath)
         
-        BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
+    #     BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
         
-        BKfolderPath=os.path.abspath(BKfolderPath)
-        ObjPath=testpath
+    #     BKfolderPath=os.path.abspath(BKfolderPath)
+    #     ObjPath=testpath
         
-        ObjJsonPath=ColmapObj(ObjPath)
+    #     ObjJsonPath=ColmapObj(ObjPath)
            
-        if(ObjJsonPath != None):
-            objdone=NerfObj (ObjJsonPath,ObjPath,"target")
+    #     if(ObjJsonPath != None):
+    #         objdone=NerfObj (ObjJsonPath,ObjPath,"target")
     
      
-        if(objdone):
-            BKJsonPath=ColmapObj(BKfolderPath)
-            if(BKJsonPath != None):
-                Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
+    #     if(objdone):
+    #         BKJsonPath=ColmapObj(BKfolderPath)
+    #         if(BKJsonPath != None):
+    #             Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
         
         
         
@@ -344,7 +347,7 @@ def find_file(filename, search_path, search_subdirs=True):
     
 def modifytheMesh(prompt,UID,shapePth):
     #result = subprocess.run(f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\TracktheTarget.py --video_path  {output_dir}\\{str(video_path)} --coordinates {int(coordinates[0])} {int(coordinates[1])} --output_dir {output_dir}")
-    result=f"python TextureChangePipeline.py --URID {UID} --prompt {prompt} --ShapePath {shapePth}"
+    result=f"python TextureChangePipeline.py --URID {UID} --prompt {prompt} --ShapePath {shapePth} --ModulePath {TexTurePaper_modulePath}"
     # Check if the command was executed successfully
     if result.returncode == 0:
         print("Command executed successfully.")
@@ -486,13 +489,13 @@ def run_tracking(video_path, coordinates, output_dir):
 
 
     # Execute the command
-    result = subprocess.run(f"python {Inpainting_Anything_ModulePath}TracktheTarget.py --video_path  {output_dir}\\{str(video_path)} --coordinates {int(coordinates[0])} {int(coordinates[1])} --output_dir {output_dir}")
+    result = subprocess.run(f"python {Inpainting_Anything_ModulePath}TracktheTarget.py --video_path  {output_dir}\\{str(video_path)} --coordinates {int(coordinates[0])} {int(coordinates[1])} --output_dir {output_dir} --pathPTH {Inpainting_Anything_ModulePath}")
 
     # Check if the command was executed successfully
     if result.returncode == 0:
         print("Command executed successfully.")
         time.sleep(2)
-        forinpainting = os.path.abspath(output_dir+"\\"+URLid+"\\original_frames")
+        forinpainting = os.path.abspath(output_dir+"\\"+URLid+"\\"+URLid+"\\original_frames")
         print (forinpainting)
         
         run_inpainting(forinpainting,output_dir)
@@ -519,7 +522,7 @@ def run_inpainting(input_folder, output_dir):
 
   
     # Execute the command
-    result = subprocess.run(f"python {Inpainting_Anything_ModulePath}MaskAndBk.py --input_img {input_folder} --coordsJson {jsonFilepath} --point_labels 1 --dilate_kernel_size 15 --output_dir {output_dir} --sam_model_type \"vit_h\" --sam_ckpt C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\pretrained_models\\sam_vit_h_4b8939.pth --lama_config C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\lama\\configs\\prediction\\default.yaml --lama_ckpt  C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\pretrained_models/big-lama ")
+    result = subprocess.run(f"python {Inpainting_Anything_ModulePath}MaskAndBk.py --input_img {input_folder} --coordsJson {jsonFilepath} --point_labels 1 --dilate_kernel_size 15 --output_dir {output_dir} --sam_model_type \"vit_h\" --sam_ckpt {Inpainting_Anything_ModulePath}pretrained_models\\sam_vit_h_4b8939.pth --lama_config {Inpainting_Anything_ModulePath}lama\\configs\\prediction\\default.yaml --lama_ckpt  {Inpainting_Anything_ModulePath}pretrained_models\\big-lama ")
 
     # Check if the command was executed successfully
     if result.returncode == 0:
@@ -527,13 +530,8 @@ def run_inpainting(input_folder, output_dir):
         
         time.sleep(2)
         
-        
-        
-        
-        
-        URLid="20240229125610"
        
-        testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
+        testpath = "./output/"+URLid+"\\"+URLid+"\\"+URLid+"\\original_frames"
         testpath= os.path.abspath(testpath)
         
         BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
@@ -545,6 +543,8 @@ def run_inpainting(input_folder, output_dir):
            
         if(ObjJsonPath != None):
             objdone=NerfObj (ObjJsonPath,ObjPath,"target")
+        else:
+            print("Colmap Error")
     
      
         if(objdone):
@@ -754,8 +754,10 @@ def load_config(config_file):
 def oscinit():
     global osc_server
     dispatcherosc = Dispatcher()
+    
+    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
-    osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc)
+    #osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
     
@@ -771,23 +773,34 @@ def oscinit():
     dispatcherosc.set_default_handler(default_handler)
     
 
-            
+def exit_program():
+    print("Exiting the program.")
+    os.kill(os.getpid(), signal.SIGTERM)     
 
 if __name__ == '__main__':
  
     config_path = './config.json'  # Update this path to where you save your config.json
     config = load_config(config_path)
-    inpainting_anything_module_path = config['Inpainting_Anything_ModulePath']
-    instant_ngp_module_path = config['InstantNGP_MoudlePath']
+    Inpainting_Anything_ModulePath = config['Inpainting_Anything_ModulePath']
+    InstantNGP_MoudlePath = config['InstantNGP_MoudlePath']
+    TexTurePaper_modulePath= config['TEXTurePaper_ModulePath']
+    print("Inpainting Module Path:", Inpainting_Anything_ModulePath)
+    print("Instant NGP Module Path:", InstantNGP_MoudlePath)
+    print("TexttuerePath:",TexTurePaper_modulePath)
     
-    print("Inpainting Module Path:", inpainting_anything_module_path)
-    print("Instant NGP Module Path:", instant_ngp_module_path)
     
-    # main_thread = threading.Thread(target=main_loop)
-    # main_thread.start()
+    
+    
+    keyboard.add_hotkey('esc', exit_program)
+    print("press ESC to exit")
+
+    
+    main_thread = threading.Thread(target=main_loop)
+    main_thread.start()
     
     try:
-         oscinit()      
+         
+        oscinit()      
                 
     except KeyboardInterrupt:
         exit()

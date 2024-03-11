@@ -3,3 +3,6 @@
 *.jpg
 output/
 outputs/
+colmap_sparse/
+colmap_text/
+*.db

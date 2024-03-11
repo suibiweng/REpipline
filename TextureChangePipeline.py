@@ -4,6 +4,9 @@ import os
 import subprocess
 import paramiko
 import argparse
+
+
+TexTurePaper_modulePath=""
 def generate_yaml(data):
     try:
         yaml_content = yaml.dump(data, default_flow_style=False)
@@ -38,7 +41,7 @@ def create_example_data(exp_name, text, append_direction, shape_path, seed):
     
 def RunTheTRXURE (YamalPath):
     
-    result = subprocess.run(f"python -m scripts.run_texture --config_path={YamalPath}")
+    result = subprocess.run(f"python -m {TexTurePaper_modulePath}scripts.run_texture --config_path={YamalPath}")
 
     # Check if the command was executed successfully
     if result.returncode == 0:
@@ -106,6 +109,7 @@ def parse_args():
     parser.add_argument("--URID", required=True, help="Unique Resource Identifier")
     parser.add_argument("--prompt", required=True, help="Text prompt for guide")
     parser.add_argument("--ShapePath", required=True, help="Path to the shape file")
+    parser.add_argument("--ModulePath", required=True, help="Path to the shape file")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -115,6 +119,7 @@ if __name__ == "__main__":
     URID = args.URID
     prompt = args.prompt
     ShapePath = args.ShapePath
+    TexTurePaper_modulePath=args.ModulePath
 
     # Your existing logic for processing and generating the YAML
     yamlData = create_example_data(URID, prompt, True, ShapePath, 3)

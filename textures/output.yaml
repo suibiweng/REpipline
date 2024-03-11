@@ -1,8 +1,0 @@
-guide:
-  append_direction: true
-  shape_path: D:\Desktop\RealityEditor\PythonProject\TEXTurePaper\Shapes_new\bunny.obj
-  text: '"A Wood Cup, {} view"'
-log:
-  exp_name: bunny
-optim:
-  seed: 3
