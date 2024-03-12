@@ -266,29 +266,29 @@ def default_handler(address, *args):
         GenratedModl(URLID,prompt)
 
 
-    # if address =="/NerfTest":
-    #     print("TestNerf")
+    if address =="/NerfTest":
+        print("TestNerf")
         
-    #     URLid="20240229125610"
+        URLid="20240311012159"
        
-    #     testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
-    #     testpath= os.path.abspath(testpath)
+        testpath = "./output/"+URLid+"\\"+URLid+"\\"+URLid+"\\original_frames"
+        testpath= os.path.abspath(testpath)
         
-    #     BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
+        BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
         
-    #     BKfolderPath=os.path.abspath(BKfolderPath)
-    #     ObjPath=testpath
+        BKfolderPath=os.path.abspath(BKfolderPath)
+        ObjPath=testpath
         
-    #     ObjJsonPath=ColmapObj(ObjPath)
+        ObjJsonPath=ColmapObj(ObjPath)
            
-    #     if(ObjJsonPath != None):
-    #         objdone=NerfObj (ObjJsonPath,ObjPath,"target")
+        if(ObjJsonPath != None):
+            objdone=NerfObj (ObjJsonPath,ObjPath,"target")
     
      
-    #     if(objdone):
-    #         BKJsonPath=ColmapObj(BKfolderPath)
-    #         if(BKJsonPath != None):
-    #             Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
+        if(objdone):
+            BKJsonPath=ColmapObj(BKfolderPath)
+            if(BKJsonPath != None):
+                Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
         
         
         
@@ -612,7 +612,7 @@ def NerfObj (input_json,output_folder,Objtype):
     global URLid
     global InstantNGP_MoudlePath
     
-    cmd= f"python {InstantNGP_MoudlePath}scripts\\run.py --training_data {input_json} --save_snapshot {output_folder}\\{URLid}_scaned_{Objtype}.ingp --n_steps 2000 --marching_cubes_density_thresh 2.5 --marching_cubes_res 256 --save_mesh {output_folder}\\{URLid}_scaned_{Objtype}.obj" 
+    cmd= f"python {InstantNGP_MoudlePath}scripts\\run.py --training_data {input_json} --save_snapshot {output_folder}\\{URLid}_scaned_{Objtype}.ingp --n_steps 5000 --marching_cubes_density_thresh 2.5 --marching_cubes_res 512 --save_mesh {output_folder}\\{URLid}_scaned_{Objtype}.obj" 
 
    # cmd= f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\scripts\\colmap2nerf.py --colmap_matcher exhaustive --run_colmap --aabb_scale 16 --images {input_folder}--out {jsonFilepath}"
 
@@ -651,7 +651,7 @@ def zip_file_with_delay(file_path, output_zip, delay=3):
         print("Done!")
     
     # Assuming you have a function to upload the file to a server
-    return upload_file_to_server(output_zip)
+    # return upload_file_to_server(output_zip)
 
 def zip_folder_with_delay(folder_path, output_zip, delay=3):
 
@@ -672,7 +672,7 @@ def zip_folder_with_delay(folder_path, output_zip, delay=3):
     print("Done!")
 
     # Assuming you have a function to upload the file to a server
-    return upload_file_to_server(output_zip)
+    # return upload_file_to_server(output_zip)
         
 
 
@@ -795,8 +795,8 @@ if __name__ == '__main__':
     print("press ESC to exit")
 
     
-    main_thread = threading.Thread(target=main_loop)
-    main_thread.start()
+    # main_thread = threading.Thread(target=main_loop)
+    # main_thread.start()
     
     try:
          

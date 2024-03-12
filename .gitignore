@@ -6,3 +6,6 @@ outputs/
 colmap_sparse/
 colmap_text/
 *.db
+colmap.db
+colmap_sparse
+colmap_text
