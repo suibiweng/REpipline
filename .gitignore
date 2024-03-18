@@ -9,3 +9,5 @@ colmap_text/
 colmap.db
 colmap_sparse
 colmap_text
+config.json
+config.json

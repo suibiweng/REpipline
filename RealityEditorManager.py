@@ -175,7 +175,7 @@ def convert_coordinates(coordinates_str):
     coordinates_str = coordinates_str.strip('()')
     x, y = coordinates_str.split(',')
     # Convert to integers and return as a tuple
-    return float(x), float(y)
+    return float(x), (float(y))
 
 
 # Function to handle OSC messages
@@ -247,8 +247,9 @@ def default_handler(address, *args):
         
         testpath = "./output/"+URLid
         testvideoName=URLid+".mp4"
+        time.sleep(3)
         
-        ffmpegCall(testpath, testvideoName, picCount)       
+        ffmpegCall(testpath, testvideoName, 30)       
         
         saveImageName="" 
         jsonFilename=""
@@ -364,6 +365,7 @@ def modifytheMesh(prompt,UID,shapePth):
         
 
 def process_obj_and_save(input_obj_path):
+    global URLid
     """
     Processes an OBJ file using PyMeshlab with the following steps:
     1. Merge close vertices
@@ -399,8 +401,16 @@ def process_obj_and_save(input_obj_path):
     # Remove isolated pieces
     # Here we adjust the filter to what is believed to be correct; you may need to replace this with the correct function and parameters
     # Check your PyMeshlab version for the exact filter name and parameters
-    p = pymeshlab.PercentageValue(10)
+    p = pymeshlab.PercentageValue(90)
     ms.meshing_remove_connected_component_by_diameter(mincomponentdiag=p)
+    
+    
+    #simplify
+    ms.meshing_decimation_quadric_edge_collapse(targetfacenum = 250000)    
+    
+    
+    #smooth
+    ms.apply_coord_laplacian_smoothing(stepsmoothnum =3)
 
 
 
@@ -417,6 +427,9 @@ def process_obj_and_save(input_obj_path):
 
     processed_obj_path = os.path.join(output_folder, base_name + '.obj')
     ms.save_current_mesh(processed_obj_path)
+    
+    time.sleep(3)
+    zip_folder_with_delay(output_folder,f"{base_name}.zip")
 
     return output_folder
 
@@ -448,7 +461,7 @@ def ffmpegCall(input_folder, output_video, frame_rate=30):
 
     # Run the ffmpeg command
     try:
-        subprocess.run(f"ffmpeg -framerate 31 -i {input_folder}/{URLid}_scan_%d.jpg -c:v libx264 -pix_fmt yuv420p -r {frame_rate} {input_folder}/{output_video}", check=True)
+        subprocess.run(f"ffmpeg -framerate 30 -i {input_folder}/{URLid}_scan_%d.jpg -c:v libx264 -pix_fmt yuv420p -r 30 {input_folder}/{output_video}", check=True)
         print(f"Video has been successfully created at {output_video}")
         time.sleep(2)
         run_tracking(output_video,serials_data[0]["Coordinates"],input_folder)
@@ -495,11 +508,11 @@ def run_tracking(video_path, coordinates, output_dir):
     if result.returncode == 0:
         print("Command executed successfully.")
         time.sleep(2)
-        forinpainting = os.path.abspath(output_dir+"\\"+URLid+"\\"+URLid+"\\original_frames")
-        print (forinpainting)
+        forcolmap = os.path.abspath(output_dir+"\\"+URLid+"\\original_frames")
+        print (forcolmap)
         
-        run_inpainting(forinpainting,output_dir)
-        
+        # run_inpainting(forinpainting,output_dir)
+        ColmapObj(forcolmap)
         
 
         
@@ -519,38 +532,56 @@ def run_inpainting(input_folder, output_dir):
     global Inpainting_Anything_ModulePath
     #print(output_dir)
     jsonFilepath=input_folder+"\\"+URLid+".json"
+    colmapjson=input_folder+"\\transform.json"
 
   
     # Execute the command
-    result = subprocess.run(f"python {Inpainting_Anything_ModulePath}MaskAndBk.py --input_img {input_folder} --coordsJson {jsonFilepath} --point_labels 1 --dilate_kernel_size 15 --output_dir {output_dir} --sam_model_type \"vit_h\" --sam_ckpt {Inpainting_Anything_ModulePath}pretrained_models\\sam_vit_h_4b8939.pth --lama_config {Inpainting_Anything_ModulePath}lama\\configs\\prediction\\default.yaml --lama_ckpt  {Inpainting_Anything_ModulePath}pretrained_models\\big-lama ")
+    result = subprocess.run(f"python {Inpainting_Anything_ModulePath}MaskAndBk.py --input_img {input_folder} --coordsJson {jsonFilepath} --colmapPath {colmapjson} --point_labels 1 --dilate_kernel_size 15 --output_dir {output_dir} --sam_model_type \"vit_h\" --sam_ckpt {Inpainting_Anything_ModulePath}pretrained_models\\sam_vit_h_4b8939.pth --lama_config {Inpainting_Anything_ModulePath}lama\\configs\\prediction\\default.yaml --lama_ckpt  {Inpainting_Anything_ModulePath}pretrained_models\\big-lama --URID {URLid} ")
 
     # Check if the command was executed successfully
     if result.returncode == 0:
         print("Command executed successfully.")
         
         time.sleep(2)
-        
-       
-        testpath = "./output/"+URLid+"\\"+URLid+"\\"+URLid+"\\original_frames"
+        testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
         testpath= os.path.abspath(testpath)
         
         BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
         
         BKfolderPath=os.path.abspath(BKfolderPath)
         ObjPath=testpath
+        NerfObj (colmapjson,ObjPath,"target")
+       
+        # testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
+        # testpath= os.path.abspath(testpath)
         
-        ObjJsonPath=ColmapObj(ObjPath)
+        # BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
+        
+        # BKfolderPath=os.path.abspath(BKfolderPath)
+        # ObjPath=testpath
+
+        
+        # ObjJsonPath=ColmapObj(ObjPath)
+        # if(ObjJsonPath != None):
+        #     NerfObj (ObjJsonPath,ObjPath,"target")
+        # else:
+        #     print("Colmap Error")
+  
+  
+        # BKJsonPath=ColmapObj(BKfolderPath)
+        # if(BKJsonPath != None):
+        #     Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
+        # else:
+        #     print("BK Colmap Error")
+  
+        
+       
            
-        if(ObjJsonPath != None):
-            objdone=NerfObj (ObjJsonPath,ObjPath,"target")
-        else:
-            print("Colmap Error")
+
     
      
-        if(objdone):
-            BKJsonPath=ColmapObj(BKfolderPath)
-            if(BKJsonPath != None):
-                Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
+        
+  
         
         
         # BKfolderPath=input_folder+"\\"+"GenerateImages\\images\\"
@@ -599,6 +630,9 @@ def ColmapObj (input_folder):
     # Check if the command was executed successfully
     if result.returncode == 0:
         print("Colmap executed successfully.")
+        run_inpainting(input_folder,input_folder)
+        
+        
         return jsonFilepath
         # Optional: Print stdout
       
@@ -612,20 +646,23 @@ def NerfObj (input_json,output_folder,Objtype):
     global URLid
     global InstantNGP_MoudlePath
     
-    cmd= f"python {InstantNGP_MoudlePath}scripts\\run.py --training_data {input_json} --save_snapshot {output_folder}\\{URLid}_scaned_{Objtype}.ingp --n_steps 5000 --marching_cubes_density_thresh 2.5 --marching_cubes_res 512 --save_mesh {output_folder}\\{URLid}_scaned_{Objtype}.obj" 
+    cmd= f"python {InstantNGP_MoudlePath}scripts\\run.py --training_data {input_json} --save_snapshot {output_folder}\\{URLid}_scaned_{Objtype}.ingp --n_steps 8000 --marching_cubes_density_thresh 2 --marching_cubes_res 128 --save_mesh {output_folder}\\{URLid}_scaned_{Objtype}.obj" 
 
    # cmd= f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\scripts\\colmap2nerf.py --colmap_matcher exhaustive --run_colmap --aabb_scale 16 --images {input_folder}--out {jsonFilepath}"
 
     # Execute the command
     result = subprocess.run(cmd)
 
+
     # Check if the command was executed successfully
     if result.returncode == 0:
-        zip_folder_with_delay(process_obj_and_save(f"{output_folder}\\{URLid}_scaned_{Objtype}.obj"),f"{URLid}_scaned_{Objtype}.zip")
         print("Command executed successfully.")
+        time.sleep(10)
         
+        process_obj_and_save(f"{output_folder}\\{URLid}_scaned_{Objtype}.obj")
+       
         # Optional: Print stdout
-        return True
+        
         
     else:
         print("Command failed with return code", result.returncode)
@@ -755,9 +792,9 @@ def oscinit():
     global osc_server
     dispatcherosc = Dispatcher()
     
-    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
-    #osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
+    osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
     
@@ -795,8 +832,8 @@ if __name__ == '__main__':
     print("press ESC to exit")
 
     
-    # main_thread = threading.Thread(target=main_loop)
-    # main_thread.start()
+    main_thread = threading.Thread(target=main_loop)
+    main_thread.start()
     
     try:
          
