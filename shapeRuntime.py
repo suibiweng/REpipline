@@ -3,6 +3,7 @@ import base64
 import os
 import sys
 import argparse
+import pymeshlab as ml
 
 class SHAPERuntime:
     def __init__(self):
@@ -11,7 +12,7 @@ class SHAPERuntime:
         self.cfg = 20
         self.directory_path = "./output" #do not use / at the end (check line 70)
         self.model_name = ""
-        self.format = "obj"
+        self.format = "FBX"
         self.post_flag = False
         self.post_progress = 0
         self.text_to_mesh_id = "nejnwmcwvhcax9"
@@ -68,14 +69,22 @@ class SHAPERuntime:
             else:
                 self.model_name = self.model_id+"_generated"
                 model_data = base64.b64decode(response.text)
+                model_obj=base64.b64decode(response.text)
                 dpath = f"{self.directory_path}/{self.model_id}"
+
                 if not os.path.exists(dpath):
                     os.makedirs(dpath)  # create directory if it doesn't exist 
                                              
                 with open(f"{dpath}/{self.model_name}.{self.format}", "wb") as model_file:
                     model_file.write(model_data)
+
+                with open(f"{dpath}/{self.model_name}.{"obj"}", "wb") as model_file2:
+                    model_file2.write(model_obj)
+
+
                 print(f"Inference Successful: Please find the model in the {self.directory_path}")
                 self.broadcast_message("Done")
+
 
     def verify(self, url, body_json_string):
         headers = {"Content-Type": "application/json"}
@@ -99,6 +108,18 @@ def parse_args():
     parser.add_argument("--URID", required=True, help="Unique Resource Identifier")
     parser.add_argument("--prompt", required=True, help="Text prompt for guide")
     return parser.parse_args()
+
+def fbx_to_obj(input_file, output_file):
+    # Initialize MeshLab server
+    ms = ml.MeshSet()
+
+    # Import FBX file
+    ms.load_new_mesh(input_file)
+
+    # Export as OBJ
+    ms.save_current_mesh(output_file)
+
+# Specify input and output file paths
 
 
 if __name__ == '__main__':

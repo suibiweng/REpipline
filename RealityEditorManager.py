@@ -3,7 +3,7 @@ from pythonosc.dispatcher import Dispatcher
 from pythonosc import osc_server
 import subprocess
 import zipfile
-
+import yaml
 import paramiko
 import cv2
 import numpy as np
@@ -255,10 +255,20 @@ def default_handler(address, *args):
         jsonFilename=""
         picCount=0
     if address =="/InstructModify":
-        shape_path=find_file(f"{args[2]}_scaned.obj",".\\output")
+        delete_file_if_exists(f"{args[2]}_Instruction.zip")
+        URLid=args[2]
+        shape_path=get_output_folder_with_obj_file(args[2])
+
         
         if(shape_path!=None):
-            modifytheMesh(args[1],args[2],shape_path)
+            # modifytheMesh(args[1],args[2],shape_path)
+            yamlfile= save_yaml_file(str(args[2]), args[1], True, shape_path, 3, f"./textures/{args[2]}.yaml")
+            print("StartRun Texture pipline")
+            RunTheTRXURE (yamlfile)
+        else:
+            print("id not found!")
+
+
         
         
     if address == "/PromtGenerateModel":
@@ -298,6 +308,133 @@ def default_handler(address, *args):
         #     zip_file_with_delay(get_obj_file(BKfolderPath),URLid+"_scaned_background.zip")
         #     time.sleep(10)
         #     zip_file_with_delay(get_obj_file(ObjPath),URLid+"_target.zip")
+def save_yaml_file(exp_name, text, append_direction, shape_path, seed, filename):
+    """
+    Create YAML data similar to the provided structure and save it to a file.
+
+    Parameters:
+        exp_name (str): Experiment name.
+        text (str): Text for the guide.
+        append_direction (str): Direction to append.
+        shape_path (str): Path to shape file.
+        seed (int): Random seed.
+        filename (str): Name of the file to save the YAML data.
+
+    Returns:
+        str: Absolute path of the file where the YAML data is saved.
+    """
+    data = {
+        'guide': {
+            'append_direction':True,
+            'shape_path': shape_path,
+            'text': f"{text}"+",{} view"
+        },
+        'log': {
+            'exp_name': exp_name
+        }, 
+        'optim': {
+            'seed': seed
+        }
+    }
+    with open(filename, 'w') as file:
+        yaml.dump(data, file, default_flow_style=False)
+    return os.path.abspath(filename)
+
+
+
+
+def delete_file_if_exists(file_path):
+    """
+    Deletes the file at 'file_path' if it exists.
+
+    Args:
+    file_path (str): The path to the file you want to delete.
+    """
+    # Check if the file exists
+    if os.path.exists(file_path):
+        # Delete the file
+        os.remove(file_path)
+        print(f"File '{file_path}' has been deleted.")
+    else:
+        # File does not exist
+        print(f"File '{file_path}' does not exist.")
+
+
+def RunTheTRXURE (YamalPath):
+
+    global TexTurePaper_modulePath
+    global URLid
+    # re_export_obj(f'{TexTurePaper_modulePath}\experiments\{URLid}\mesh\mesh.obj')
+    # zip_files_with_delay(f"{TexTurePaper_modulePath}\experiments\{URLid}\mesh",f"{URLid}_Instruction.zip", delay=10)
+
+
+    cmd= f"python -m scripts.run_texture --config_path={YamalPath}"
+    result = subprocess.run(cmd, cwd=TexTurePaper_modulePath, capture_output=True, text=True)
+
+    # Check if the command was executed successfully
+    if result.returncode == 0:
+        print("Command executed successfully.")
+        time.sleep(2)
+        re_export_obj(f'{TexTurePaper_modulePath}\experiments\{URLid}\mesh\mesh.obj')
+        zip_files_with_delay(f"{TexTurePaper_modulePath}\experiments\{URLid}\mesh",f"{URLid}_Instruction.zip", delay=10)
+
+        
+
+        
+        # Optional: Print stdout
+        if result.stdout:
+            print("Output:", result.stdout)
+
+
+
+
+        
+    else:
+        print("Command failed with return code", result.returncode)
+    
+
+
+
+
+
+        #zip_files_with_delay
+
+
+
+        # Print stderr for error
+        if result.stderr:
+            print("Error:", result.stderr)
+    
+    return True
+
+def zip_files_with_delay(directory, output_zip, delay=3):
+    time.sleep(delay)
+    
+    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Iterate through all files in the directory
+        for root, _, files in os.walk(directory):
+            for file in files:
+                # Determine the path of the file to be zipped
+                file_path = os.path.join(root, file)
+                
+                # Determine the arcname (the name of the file within the zip archive)
+                # This will be the relative path of the file with respect to the directory
+                arcname = os.path.relpath(file_path, directory)
+                
+                # Write the file to the zip archive
+                zipf.write(file_path, arcname)
+        
+        print("Done!")
+
+def re_export_obj(input_obj_file):
+    # Initialize MeshLab server
+    ms = pymeshlab.MeshSet()
+    # Load OBJ file
+    ms.load_new_mesh(input_obj_file)
+
+    # Export as OBJ (optional: adjust export settings as needed)
+    ms.save_current_mesh(input_obj_file)
+
 
 def GenratedModl(URLID,prompt):
     
@@ -312,7 +449,7 @@ def GenratedModl(URLID,prompt):
         if result.returncode == 0:
             print("Command executed successfully.")
             time.sleep(3)
-            zip_file_with_delay(f"./output/{URLID}/{URLID}_generated.obj", f"{URLID}_generated.zip", delay=3)
+            zip_file_with_delay(f"./output/{URLID}/{URLID}_generated.FBX", f"{URLID}_generated.zip", delay=3)
             
 
             # Optional: Print stdout
@@ -328,27 +465,42 @@ def GenratedModl(URLID,prompt):
 
 
         
-def find_file(filename, search_path, search_subdirs=True):
+def get_output_folder_with_obj_file(folder_name):
     """
-    Searches for a file within a specified path and its subdirectories.
+    Get the path to a specified folder within the 'output' folder,
+    and return the absolute path of the first .obj file found in that folder.
 
-    Args:
-    - filename (str): The name of the file to search for.
-    - search_path (str): The directory path to start the search from.
-    - search_subdirs (bool, optional): Whether to search in subdirectories. Defaults to True.
+    Parameters:
+        folder_name (str): The name of the folder you want within the 'output' folder.
 
     Returns:
-    - str or None: The path to the file if found, None otherwise.
+        str: The absolute path to the specified folder within the 'output' folder.
+        If a .obj file is found, returns its absolute path. Otherwise, returns None.
     """
-    for root, dirs, files in os.walk(search_path):
-        if filename in files:
-            return os.path.join(root, filename)
-    return None
+    output_folder = os.path.join(os.getcwd(), 'output', folder_name)
+    
+    # Check if the specified folder exists
+    if not os.path.exists(output_folder):
+        return None
+    
+    # Look for .obj files in the specified folder
+    for file_name in os.listdir(output_folder):
+        if file_name.endswith('.obj') and (file_name.endswith('generated.obj') or file_name.endswith('target.obj')):
+            obj_file_path = os.path.join(output_folder, file_name)
+            return obj_file_path
+    
+    # If no .obj file found, return the path to the specified folder
+    return output_folder
         
     
 def modifytheMesh(prompt,UID,shapePth):
+    global TexTurePaper_modulePath
     #result = subprocess.run(f"python C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\TracktheTarget.py --video_path  {output_dir}\\{str(video_path)} --coordinates {int(coordinates[0])} {int(coordinates[1])} --output_dir {output_dir}")
-    result=f"python TextureChangePipeline.py --URID {UID} --prompt {prompt} --ShapePath {shapePth} --ModulePath {TexTurePaper_modulePath}"
+    cmd=f"python TextureChangePipeline.py --URID {UID} --prompt \"{prompt}\" --ShapePath {shapePth} --ModulePath {TexTurePaper_modulePath}"
+  
+  
+  
+    result = subprocess.run(cmd,shell=True, capture_output=True, text=True)
     # Check if the command was executed successfully
     if result.returncode == 0:
         print("Command executed successfully.")
@@ -432,6 +584,9 @@ def process_obj_and_save(input_obj_path):
     zip_folder_with_delay(output_folder,f"{base_name}.zip")
 
     return output_folder
+
+
+
 
 
 def ffmpegCall(input_folder, output_video, frame_rate=30):
@@ -793,8 +948,8 @@ def oscinit():
     dispatcherosc = Dispatcher()
     
     # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
-    # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
-    osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
+    osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
+    # osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
     
@@ -832,8 +987,8 @@ if __name__ == '__main__':
     print("press ESC to exit")
 
     
-    main_thread = threading.Thread(target=main_loop)
-    main_thread.start()
+    # main_thread = threading.Thread(target=main_loop)
+    # main_thread.start()
     
     try:
          

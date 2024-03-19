@@ -1,12 +1,17 @@
 import time
 import yaml
+import json
 import os
 import subprocess
 import paramiko
 import argparse
+import pymeshlab as ml
+import time
+import zipfile
 
-
+URID=""
 TexTurePaper_modulePath=""
+
 def generate_yaml(data):
     try:
         yaml_content = yaml.dump(data, default_flow_style=False)
@@ -23,25 +28,45 @@ def save_to_yaml(yaml_content, filename='textures/output.yaml'):
         return os.path.abspath(filename)
     except Exception as e:
         print(f"Error saving YAML: {e}")
+def save_yaml_file(exp_name, text, append_direction, shape_path, seed, filename):
+    """
+    Create YAML data similar to the provided structure and save it to a file.
 
-def create_example_data(exp_name, text, append_direction, shape_path, seed):
-    return {
+    Parameters:
+        exp_name (str): Experiment name.
+        text (str): Text for the guide.
+        append_direction (str): Direction to append.
+        shape_path (str): Path to shape file.
+        seed (int): Random seed.
+        filename (str): Name of the file to save the YAML data.
+
+    Returns:
+        str: Absolute path of the file where the YAML data is saved.
+    """
+    data = {
+        'guide': {
+            'append_direction':True,
+            'shape_path': shape_path,
+            'text': f"{text}"+",{} view"
+        },
         'log': {
             'exp_name': exp_name
-        },
-        'guide': {
-            'text':f'"{text}"',
-            'append_direction': append_direction,
-            'shape_path': shape_path
-        },
+        }, 
         'optim': {
             'seed': seed
         }
     }
-    
+    with open(filename, 'w') as file:
+        yaml.dump(data, file, default_flow_style=False)
+    return os.path.abspath(filename)
+
+
 def RunTheTRXURE (YamalPath):
-    
-    result = subprocess.run(f"python -m {TexTurePaper_modulePath}scripts.run_texture --config_path={YamalPath}")
+
+    global TexTurePaper_modulePath
+    global URID
+    cmd= f"python -m scripts.run_texture --config_path={YamalPath}"
+    result = subprocess.run(cmd, cwd=TexTurePaper_modulePath, capture_output=True, text=True)
 
     # Check if the command was executed successfully
     if result.returncode == 0:
@@ -54,14 +79,68 @@ def RunTheTRXURE (YamalPath):
         # Optional: Print stdout
         if result.stdout:
             print("Output:", result.stdout)
+
+
+
         
     else:
         print("Command failed with return code", result.returncode)
+        re_export_obj(f'.\experiments\{URID}\mesh\mesh.obj')
+        zip_files_with_delay(f".\experiments\{URID}\mesh",f"{URID}_Instruction.zip", delay=10)
+
+
+
+
+
+
+        #zip_files_with_delay
+
+
+
         # Print stderr for error
         if result.stderr:
             print("Error:", result.stderr)
     
     return True
+
+def zip_files_with_delay(directory, output_zip, delay=3):
+    time.sleep(delay)
+    
+    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Iterate through all files in the directory
+        for root, _, files in os.walk(directory):
+            for file in files:
+                # Determine the path of the file to be zipped
+                file_path = os.path.join(root, file)
+                
+                # Determine the arcname (the name of the file within the zip archive)
+                # This will be the relative path of the file with respect to the directory
+                arcname = os.path.relpath(file_path, directory)
+                
+                # Write the file to the zip archive
+                zipf.write(file_path, arcname)
+        
+        print("Done!")
+
+def re_export_obj(input_obj_file):
+    # Initialize MeshLab server
+    ms = ml.MeshSet()
+
+    # Load OBJ file
+    ms.load_new_mesh(input_obj_file)
+
+    # Export as OBJ (optional: adjust export settings as needed)
+    ms.save_current_mesh(input_obj_file)
+
+
+
+
+
+
+
+
+
+
 
 def upload_file_to_server( local_file_path,server_ip = '34.106.250.143', server_port=22):
    
@@ -122,18 +201,16 @@ if __name__ == "__main__":
     TexTurePaper_modulePath=args.ModulePath
 
     # Your existing logic for processing and generating the YAML
-    yamlData = create_example_data(URID, prompt, True, ShapePath, 3)
-    yamlfile = save_to_yaml(yamlData, filename='textures/output.yaml')
+  
 
-    
+    yamlfile= save_yaml_file(str(URID), prompt, True, ShapePath, 3, f"./textures/{URID}.yaml")
+    #yamlfile = save_to_yaml( yamlData, filename=f'textures/{URID}.yaml')
+    print("StartRun Texture pipline")
+    RunTheTRXURE (yamlfile)
     
     
     
 
-    # event_handler = MyHandler()
-    # observer = Observer()
-    # observer.schedule(event_handler, path=folder_to_watch, recursive=False)
-    # observer.start()
 
     try:
         while True:
