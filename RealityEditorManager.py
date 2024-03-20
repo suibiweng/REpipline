@@ -947,8 +947,8 @@ def oscinit():
     global osc_server
     dispatcherosc = Dispatcher()
     
-    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
-    osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
+    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+    #osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
     # osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
