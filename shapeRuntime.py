@@ -78,8 +78,9 @@ class SHAPERuntime:
                 with open(f"{dpath}/{self.model_name}.{self.format}", "wb") as model_file:
                     model_file.write(model_data)
 
-                with open(f"{dpath}/{self.model_name}.{"obj"}", "wb") as model_file2:
-                    model_file2.write(model_obj)
+                # with open(f"{dpath}/{self.model_name}.obj", "wb") as model_file2:
+                #     model_file2.write(model_obj)
+                fbx_to_obj(f"{dpath}/{self.model_name}.{self.format}", f"{dpath}/{self.model_name}.obj")
 
 
                 print(f"Inference Successful: Please find the model in the {self.directory_path}")

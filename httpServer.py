@@ -1,10 +1,15 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
 import cgi
 import subprocess
 import os
 import time
 Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
 
+class BasicRequestHandler(BaseHTTPRequestHandler):
+    def do_HEAD(self):
+        self.send_response(200)
+        self.end_headers()
 class  EnhancedRequestHandler(BaseHTTPRequestHandler):
    
     def do_POST(self):
@@ -79,17 +84,27 @@ class  EnhancedRequestHandler(BaseHTTPRequestHandler):
         if result.returncode == 0:
             print("Command executed successfully.")
         
-
+def run_additional_server(server_class=HTTPServer, handler_class=BasicRequestHandler, port=8000):
+    server_address = ('', port)
+    httpd = server_class(server_address, handler_class)
+    print(f'Starting additional server on port {port}...')
+    httpd.serve_forever()
        
            
 
-def run(server_class=HTTPServer, handler_class=EnhancedRequestHandler, port=8080):
+def main_server(server_class=HTTPServer, handler_class=EnhancedRequestHandler, port=8080):
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)
     print(f'Starting server on port {port}...')
     httpd.serve_forever()
 
 if __name__ == '__main__':
-    run()
+        # Start the main server in a separate thread
+    main_server_thread = threading.Thread(target=main_server)
+    main_server_thread.start()
+
+    # Start the additional server in a separate thread
+    # additional_server_thread = threading.Thread(target=run_additional_server)
+    # additional_server_thread.start()
     
     

@@ -66,11 +66,20 @@ class Handler(FileSystemEventHandler):
             file_name_with_extension = os.path.basename(event.src_path)
             file_name_without_extension, _ = os.path.splitext(file_name_with_extension)
 
-            fbx_to_obj(event.src_path, temp_folder_path/file_name_without_extension+".obj")
+           
             
             destination_file_path = os.path.join(temp_folder_path, file_name)
             move(event.src_path, destination_file_path)
+            
+            
+           
             print(f"Moved {event.src_path} to {destination_file_path}")
+            time.sleep(2)
+            # self.fbx_to_obj(destination_file_path, temp_folder_path/timestamp+".obj")
+            
+            ms = ml.MeshSet()
+            ms.load_new_mesh(destination_file_path)
+            ms.save_current_mesh(temp_folder_path+"\\"+timestamp+"_target.obj")
 
 
             # Define the output zip file name (same name with .zip extension)
@@ -78,17 +87,6 @@ class Handler(FileSystemEventHandler):
             
             # Zip the file with a delay
             Handler.zip_file_with_delay(temp_folder_path, file_name, output_zip)
-
-        @staticmethod
-        def fbx_to_obj(input_file, output_file):
-    # Initialize MeshLab server
-         ms = ml.MeshSet()
-
-    # Import FBX file
-         ms.load_new_mesh(input_file)
-
-    # Export as OBJ
-         ms.save_current_mesh(output_file)
 
 if __name__ == '__main__':
     w = Watcher()
