@@ -12,3 +12,4 @@ colmap_text
 config.json
 config.json
 textures
+*.png
