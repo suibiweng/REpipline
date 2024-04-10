@@ -45,7 +45,7 @@ def save_yaml_file(exp_name, text, append_direction, shape_path, seed, filename)
     """
     data = {
         'guide': {
-            'append_direction':True,
+            # 'append_direction': True,
             'shape_path': shape_path,
             'text': f"{text}"+",{} view"
         },

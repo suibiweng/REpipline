@@ -3,6 +3,7 @@ import threading
 import cgi
 import subprocess
 import os
+import json
 import time
 Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
 
@@ -73,12 +74,12 @@ class  EnhancedRequestHandler(BaseHTTPRequestHandler):
     def run_inpainting(self,input_img, output_dir,URLid,coordinates):
         
         coordinates_int = [int(round(float(coord))) for coord in coordinates]
-        # coordinates_int[1] += 125 
+        coordinates_int[1] += 150
         coordinates_str = ' '.join(map(str, coordinates_int))
        
-        global Inpainting_Anything_ModulePath
+        global Inpainting_Anything_ModulePathW
     # Execute the command
-        result = subprocess.run(f"python {Inpainting_Anything_ModulePath}RemoveSingleObject.py --input_img {input_img} --coords_type \"key_in\" --point_coords {coordinates_str} --point_labels 1 --dilate_kernel_size 15 --output_dir {output_dir} --sam_model_type \"vit_h\" --sam_ckpt {Inpainting_Anything_ModulePath}pretrained_models\\sam_vit_h_4b8939.pth --lama_config {Inpainting_Anything_ModulePath}lama\\configs\\prediction\\default.yaml --lama_ckpt  {Inpainting_Anything_ModulePath}pretrained_models\\big-lama --URID {URLid} ")
+        result = subprocess.run(f"python {Inpainting_Anything_ModulePath}/RemoveSingleObject.py --input_img {input_img} --coords_type \"key_in\" --point_coords {coordinates_str} --point_labels 1 --dilate_kernel_size 15 --output_dir {output_dir} --sam_model_type \"vit_h\" --sam_ckpt {Inpainting_Anything_ModulePath}\\pretrained_models\\sam_vit_h_4b8939.pth --lama_config {Inpainting_Anything_ModulePath}\\lama\\configs\\prediction\\default.yaml --lama_ckpt  {Inpainting_Anything_ModulePath}\\pretrained_models\\big-lama --URID {URLid} ")
 
     # Check if the command was executed successfully
         if result.returncode == 0:
@@ -98,7 +99,16 @@ def main_server(server_class=HTTPServer, handler_class=EnhancedRequestHandler, p
     print(f'Starting server on port {port}...')
     httpd.serve_forever()
 
+def load_config(config_file):
+    with open(config_file, 'r') as file:
+        config = json.load(file)
+    return config
+
 if __name__ == '__main__':
+
+    config_path = './config.json'  # Update this path to where you save your config.json
+    config = load_config(config_path)
+    Inpainting_Anything_ModulePath = config['Inpainting_Anything_ModulePath']
         # Start the main server in a separate thread
     main_server_thread = threading.Thread(target=main_server)
     main_server_thread.start()
