@@ -18,12 +18,28 @@ import NDIlib as ndi
 import signal
 import keyboard
 
+# os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+import mediapipe as mp
+
+
+
 import pymeshlab
 
 
 from PIL import Image
 import json
 
+
+
+
+mp_objectron = mp.solutions.objectron
+mp_drawing = mp.solutions.drawing_utils
+
+objectron = mp_objectron.Objectron(static_image_mode=False,
+                            max_num_objects=5,
+                            min_detection_confidence=0.5,
+                            min_tracking_confidence=0.7,
+                            model_name='Cup')
 
 
 Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
@@ -73,6 +89,12 @@ AWB = True
 
 
 def main_loop():
+    global mp_objectron
+    global mp_drawing 
+
+    global objectron
+
+
     
     if not ndi.initialize():
         return 0
@@ -91,10 +113,12 @@ def main_loop():
 
     ndi_recv_create = ndi.RecvCreateV3()
     ndi_recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
-
     ndi_recv = ndi.recv_create_v3(ndi_recv_create)
 
+
+
     if ndi_recv is None:
+        print("None")
         return 0
 
     ndi.recv_connect(ndi_recv, sources[0])
@@ -112,8 +136,28 @@ def main_loop():
             frame = np.copy(v.data)
             cv2.imshow('ndi image', frame)
             ndi.recv_free_video_v2(ndi_recv, v)
+
+
+            # image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # results = objectron.process(image)
+
+            # if results.detected_objects:
+            #     for detected_object in results.detected_objects:
+            #         print(detected_object)
+            #         mp_drawing.draw_landmarks(image, 
+            #                           detected_object.landmarks_2d, 
+            #                           mp_objectron.BOX_CONNECTIONS)
+          
+            #         mp_drawing.draw_axis(image, 
+            #                      detected_object.rotation,
+            #                      detected_object.translation)
+
+            #cv2.imshow('MediaPipe Objectron_NDI', cv2.flip(image, 1))
+
+
+
         
-        
+
         
             
             
@@ -217,10 +261,7 @@ def default_handler(address, *args):
         #saveFile = open(imgPath+"/data.txt", "w")
         print("a new frame")
         print(args[0])
-
         saveImageName = imgPath+args[0]
-       
-        
         serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
         picCount+=1
         
@@ -947,9 +988,9 @@ def oscinit():
     global osc_server
     dispatcherosc = Dispatcher()
     
-    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
-    osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
+    # osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
     
@@ -987,8 +1028,8 @@ if __name__ == '__main__':
     print("press ESC to exit")
 
     
-    # main_thread = threading.Thread(target=main_loop)
-    # main_thread.start()
+    main_thread = threading.Thread(target=main_loop)
+    main_thread.start()
     
     try:
          

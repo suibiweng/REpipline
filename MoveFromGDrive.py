@@ -79,6 +79,12 @@ class Handler(FileSystemEventHandler):
             
             ms = ml.MeshSet()
             ms.load_new_mesh(destination_file_path)
+            
+            p1 = ml.PercentageValue(1)
+            p2 = ml.PercentageValue(50)
+
+
+            ms.generate_resampled_uniform_mesh(cellsize=p1,offset =p2 , mergeclosevert=False,discretize=False, multisample=False ,absdist=False )
             ms.save_current_mesh(temp_folder_path+"\\"+timestamp+"_target.obj")
 
 

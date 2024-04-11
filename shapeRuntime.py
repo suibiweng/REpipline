@@ -117,6 +117,14 @@ def fbx_to_obj(input_file, output_file):
     # Import FBX file
     ms.load_new_mesh(input_file)
 
+    p1 = ml.PercentageValue(1)
+    p2 = ml.PercentageValue(50)
+
+
+    ms.generate_resampled_uniform_mesh(cellsize=p1,offset =p2 , mergeclosevert=False,discretize=False, multisample=False ,absdist=False )
+
+    #ms.generate_iso_parametrization_remeshing(samplingrate= 10)
+
     # Export as OBJ
     ms.save_current_mesh(output_file)
 
