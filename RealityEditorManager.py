@@ -20,6 +20,7 @@ import keyboard
 
 # os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 # import mediapipe as mp
+# import mediapipe as mp
 
 
 
@@ -34,7 +35,14 @@ import json
 
 # mp_objectron = mp.solutions.objectron
 # mp_drawing = mp.solutions.drawing_utils
+# mp_objectron = mp.solutions.objectron
+# mp_drawing = mp.solutions.drawing_utils
 
+# objectron = mp_objectron.Objectron(static_image_mode=False,
+#                             max_num_objects=5,
+#                             min_detection_confidence=0.5,
+#                             min_tracking_confidence=0.7,
+#                             model_name='Cup')
 # objectron = mp_objectron.Objectron(static_image_mode=False,
 #                             max_num_objects=5,
 #                             min_detection_confidence=0.5,
@@ -989,6 +997,7 @@ def oscinit():
     dispatcherosc = Dispatcher()
     
     # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
     osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
@@ -1028,6 +1037,8 @@ if __name__ == '__main__':
     print("press ESC to exit")
 
     
+    # main_thread = threading.Thread(target=main_loop)
+    # main_thread.start()
     # main_thread = threading.Thread(target=main_loop)
     # main_thread.start()
     
