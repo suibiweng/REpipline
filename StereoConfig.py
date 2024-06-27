@@ -4,10 +4,92 @@ import json
 from tkinter import *
 from tkinter import ttk, filedialog
 from PIL import Image, ImageTk
-import os
+
+def update_camera_resolution(event):
+    # Get the selected resolution from the combobox
+    resolution = resolution_combobox.get()
+    width, height = map(int, resolution.split('x'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    print(f"Camera resolution set to: {resolution}")
+
+def update_values():
+    global stereo
+    # Update StereoSGBM parameters based on slider values
+    stereo.setBlockSize(slider_blockSize.get())
+    stereo.setNumDisparities(slider_numDisparities.get() * 16)  # Slider value times 16
+    stereo.setPreFilterCap(slider_preFilterCap.get())
+    stereo.setUniquenessRatio(slider_uniquenessRatio.get())
+    stereo.setSpeckleWindowSize(slider_speckleWindowSize.get())
+    stereo.setSpeckleRange(slider_speckleRange.get())
+    stereo.setDisp12MaxDiff(slider_disp12MaxDiff.get())
+    stereo.setP1(8 * 3 * slider_blockSize.get() ** 2)
+    stereo.setP2(32 * 3 * slider_blockSize.get() ** 2)
+
+def save_parameters():
+    params = {
+        'numDisparities': slider_numDisparities.get(),
+        'blockSize': slider_blockSize.get(),
+        'preFilterCap': slider_preFilterCap.get(),
+        'uniquenessRatio': slider_uniquenessRatio.get(),
+        'speckleWindowSize': slider_speckleWindowSize.get(),
+        'speckleRange': slider_speckleRange.get(),
+        'disp12MaxDiff': slider_disp12MaxDiff.get()
+    }
+    with open('stereo_params.json', 'w') as f:
+        json.dump(params, f)
+    print("Parameters saved")
+
+def load_parameters():
+    filepath = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+    if not filepath:
+        return
+    with open(filepath, 'r') as f:
+        params = json.load(f)
+    slider_numDisparities.set(params['numDisparities'])
+    slider_blockSize.set(params['blockSize'])
+    slider_preFilterCap.set(params['preFilterCap'])
+    slider_uniquenessRatio.set(params['uniquenessRatio'])
+    slider_speckleWindowSize.set(params['speckleWindowSize'])
+    slider_speckleRange.set(params['speckleRange'])
+    slider_disp12MaxDiff.set(params['disp12MaxDiff'])
+    update_values()
+    print("Parameters loaded")
+
+def process_frame():
+    _, frame = cap.read()
+    if frame is not None:
+        height, width, _ = frame.shape
+        mid_point = width // 2
+        frame_left = frame[:, :mid_point, :]
+        frame_right = frame[:, mid_point:, :]
+        gray_left = cv2.cvtColor(frame_left, cv2.COLOR_BGR2GRAY)
+        gray_right = cv2.cvtColor(frame_right, cv2.COLOR_BGR2GRAY)
+
+        disparity = stereo.compute(gray_left, gray_right).astype(np.float32)
+        disparity = (disparity - disparity.min()) / (disparity.max() - disparity.min()) * 255
+        disparity = np.uint8(disparity)
+
+        # Convert to PIL format and update the GUI
+        frame_left_image = Image.fromarray(frame_left)
+        frame_right_image = Image.fromarray(frame_right)
+        disparity_image = Image.fromarray(disparity)
+
+        left_photo = ImageTk.PhotoImage(image=frame_left_image)
+        right_photo = ImageTk.PhotoImage(image=frame_right_image)
+        disparity_photo = ImageTk.PhotoImage(image=disparity_image)
+
+        # Update the image in the GUI
+        label_left.config(image=left_photo)
+        label_left.image = left_photo
+        label_right.config(image=right_photo)
+        label_right.image = right_photo
+        label_disparity.config(image=disparity_photo)
+        label_disparity.image = disparity_photo
+        root.after(10, process_frame)
 
 # Initialize camera
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     raise IOError("Cannot open webcam")
 
@@ -63,89 +145,21 @@ slider_disp12MaxDiff = Scale(frame_controls, from_=0, to_=25, label="Disp12 Max 
 slider_disp12MaxDiff.set(1)
 slider_disp12MaxDiff.grid(column=0, row=6)
 
-button_save = Button(frame_controls, text="Save", command=lambda: save_parameters())
+button_save = Button(frame_controls, text="Save", command=save_parameters)
 button_save.grid(column=0, row=7, pady=4)
 
-button_load = Button(frame_controls, text="Load", command=lambda: load_parameters())
+button_load = Button(frame_controls, text="Load", command=load_parameters)
 button_load.grid(column=0, row=8, pady=4)
 
 # Resolution Combobox
 resolutions = ["640x480", "800x600", "1280x720", "1920x1080"]
 resolution_combobox = ttk.Combobox(frame_controls, values=resolutions, state="readonly")
 resolution_combobox.grid(column=0, row=9)
-resolution_combobox.bind("<<ComboboxSelected>>", lambda event: update_camera_resolution(event))
+resolution_combobox.bind("<<ComboboxSelected>>", update_camera_resolution)
 resolution_combobox.set("1280x720")  # Set default or read from camera
 
-button_save_capture = Button(frame_controls, text="Save Capture", command=lambda: save_capture())
-button_save_capture.grid(column=0, row=10, pady=4)
-
-def update_values():
-    global stereo
-    stereo.setBlockSize(slider_blockSize.get())
-    stereo.setNumDisparities(slider_numDisparities.get() * 16)
-    stereo.setPreFilterCap(slider_preFilterCap.get())
-    stereo.setUniquenessRatio(slider_uniquenessRatio.get())
-    stereo.setSpeckleWindowSize(slider_speckleWindowSize.get())
-    stereo.setSpeckleRange(slider_speckleRange.get())
-    stereo.setDisp12MaxDiff(slider_disp12MaxDiff.get())
-    stereo.setP1(8 * 3 * slider_blockSize.get() ** 2)
-    stereo.setP2(32 * 3 * slider_blockSize.get() ** 2)
-
-def save_parameters():
-    params = {
-        'numDisparities': slider_numDisparities.get(),
-        'blockSize': slider_blockSize.get(),
-        'preFilterCap': slider_preFilterCap.get(),
-        'uniquenessRatio': slider_uniquenessRatio.get(),
-        'speckleWindowSize': slider_speckleWindowSize.get(),
-        'speckleRange': slider_speckleRange.get(),
-        'disp12MaxDiff': slider_disp12MaxDiff.get()
-    }
-    with open('stereo_params.json', 'w') as f:
-        json.dump(params, f)
-    print("Parameters saved")
-
-def load_parameters():
-    filepath = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
-    if not filepath:
-        return
-    with open(filepath, 'r') as f:
-        params = json.load(f)
-    slider_numDisparities.set(params['numDisparities'])
-    slider_blockSize.set(params['blockSize'])
-    slider_preFilterCap.set(params['preFilterCap'])
-    slider_uniquenessRatio.set(params['uniquenessRatio'])
-    slider_speckleWindowSize.set(params['speckleWindowSize'])
-    slider_speckleRange.set(params['speckleRange'])
-    slider_disp12MaxDiff.set(params['disp12MaxDiff'])
-    update_values()
-    print("Parameters loaded")
-
-def update_camera_resolution(event):
-    resolution = resolution_combobox.get()
-    width, height = map(int, resolution.split('x'))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    print(f"Camera resolution set to: {resolution}")
-
-def save_capture():
-    _, frame = cap.read()
-    if frame is not None:
-        height, width, _ = frame.shape
-        mid_point = width // 2
-        frame_left = frame[:, :mid_point, :]
-        frame_right = frame[:, mid_point:, :]
-        gray_left = cv2.cvtColor(frame_left, cv2.COLOR_BGR2GRAY)
-        gray_right = cv2.cvtColor(frame_right, cv2.COLOR_BGR2GRAY)
-
-        disparity = stereo.compute(gray_left, gray_right).astype(np.float32)
-        disparity = (disparity - disparity.min()) / (disparity.max() - disparity.min()) * 255
-        disparity = np.uint8(disparity)
-
-        cv2.imwrite('left_image.png', cv2.cvtColor(frame_left, cv2.COLOR_RGB2BGR))
-        cv2.imwrite('right_image.png', cv2.cvtColor(frame_right, cv2.COLOR_RGB2BGR))
-        cv2.imwrite('depth_map.png', disparity)
-        print("Capture and depth map saved as PNG.")
+update_values()  # Set initial values
+process_frame()  # Start the video processing
 
 root.mainloop()
 

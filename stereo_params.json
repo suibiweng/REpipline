@@ -1,1 +1,1 @@
-{"numDisparities": 2, "blockSize": 8, "preFilterCap": 5, "uniquenessRatio": 5, "speckleWindowSize": 50, "speckleRange": 34, "disp12MaxDiff": 23}
+{"numDisparities": 3, "blockSize": 8, "preFilterCap": 63, "uniquenessRatio": 5, "speckleWindowSize": 125, "speckleRange": 48, "disp12MaxDiff": 20}

@@ -4,14 +4,12 @@ import json
 from tkinter import *
 from tkinter import ttk, filedialog
 from PIL import Image, ImageTk
-import os
 import NDIlib as ndi
 
 # Global variables to hold the current images for saving
 current_left_image = None
 current_right_image = None
 current_disparity_image = None
-
 
 def update_values():
     global stereo
@@ -65,8 +63,9 @@ def save_capture():
 
 def process_frame():
     global current_left_image, current_right_image, current_disparity_image
-    video_frame = ndi.VideoFrameV2()
-    if ndi.recv_capture_v2(recv_instance, video_frame, None, None, 5000) == ndi.RECV_STATUS_FRAME_READY:
+    t, video_frame, _, _ = ndi.recv_capture_v2(recv_instance, 5000)
+    if t == ndi.FRAME_TYPE_VIDEO:
+       
         frame = np.copy(video_frame.data)
         height, width, _ = frame.shape
         mid_point = width // 2
@@ -96,26 +95,57 @@ def process_frame():
         label_disparity.config(image=disparity_photo)
         label_disparity.image = disparity_photo
 
+        ndi.recv_free_video_v2(recv_instance, video_frame)
+    else:
+        print(f"No frame received. Status: {t}")
+
     root.after(10, process_frame)
 
 # Initialize NDI
+print("Initializing NDI...")
 if not ndi.initialize():
     print("Cannot run NDI.")
     exit(0)
+else:
+    print("NDI initialized successfully.")
 
+print("Creating NDI find instance...")
 find_instance = ndi.find_create_v2()
-sources = ndi.find_get_current_sources(find_instance)
+if find_instance is None:
+    print("Cannot create NDI find instance.")
+    ndi.destroy()
+    exit(0)
+else:
+    print("NDI find instance created.")
 
+# Wait for sources to become available
+sources = []
+while not len(sources) > 0:
+    print('Looking for sources ...')
+    ndi.find_wait_for_sources(find_instance, 1000)
+    sources = ndi.find_get_current_sources(find_instance)
+
+print(f"Found {len(sources)} sources.")
+
+print("Creating NDI receiver...")
 recv_create = ndi.RecvCreateV3()
-recv_create.source_to_connect_to = sources[0]
 recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
 recv_instance = ndi.recv_create_v3(recv_create)
 
 if recv_instance is None:
     print("Error creating NDI receiver")
+    ndi.find_destroy(find_instance)
+    ndi.destroy()
     exit(0)
+else:
+    print("NDI receiver created successfully.")
 
+ndi.recv_connect(recv_instance, sources[0])
 ndi.find_destroy(find_instance)
+
+# Initialize StereoSGBM
+stereo = cv2.StereoSGBM_create(minDisparity=0, numDisparities=3 * 16, blockSize=5, P1=8 * 3 * 5**2, P2=32 * 3 * 5**2,
+                               disp12MaxDiff=1, uniquenessRatio=10, speckleWindowSize=100, speckleRange=32, preFilterCap=63)
 
 # Initialize GUI
 root = Tk()
@@ -171,11 +201,8 @@ button_save.grid(column=0, row=7, pady=4)
 button_load = Button(frame_controls, text="Load", command=load_parameters)
 button_load.grid(column=0, row=8, pady=4)
 
-# Resolution Combobox
-
-
 button_save_capture = Button(frame_controls, text="Save Capture", command=save_capture)
-button_save_capture.grid(column=0, row=10, pady=4)
+button_save_capture.grid(column=0, row=9, pady=4)
 
 update_values()  # Set initial values
 process_frame()  # Start the video processing
