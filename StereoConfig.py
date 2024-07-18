@@ -89,7 +89,7 @@ def process_frame():
         root.after(10, process_frame)
 
 # Initialize camera
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 if not cap.isOpened():
     raise IOError("Cannot open webcam")
 
