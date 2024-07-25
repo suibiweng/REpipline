@@ -8,10 +8,14 @@ mp_drawing = mp.solutions.drawing_utils
 cap = cv2.VideoCapture(0)
 
 objectron = mp_objectron.Objectron(static_image_mode=False,
-                            max_num_objects=5,
+                            max_num_objects=1,
                             min_detection_confidence=0.5,
-                            min_tracking_confidence=0.7,
-                            model_name='Cup')
+                            min_tracking_confidence=0.3,
+                            model_name='Shoe')
+
+#'Cup', 'Shoe', 'Camera' and 'Chair'.
+
+
 
 while cap.isOpened():
     success, image = cap.read()
@@ -24,7 +28,7 @@ while cap.isOpened():
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     if results.detected_objects:
         for detected_object in results.detected_objects:
-            print(detected_object)
+            #print(detected_object)
             mp_drawing.draw_landmarks(image, 
                                       detected_object.landmarks_2d, 
                                       mp_objectron.BOX_CONNECTIONS)
@@ -32,6 +36,8 @@ while cap.isOpened():
             mp_drawing.draw_axis(image, 
                                  detected_object.rotation,
                                  detected_object.translation)
+            
+            # print (detected_object.rotation+" "+detected_object.translation)
 
     cv2.imshow('MediaPipe Objectron', cv2.flip(image, 1))
     if cv2.waitKey(10) & 0xFF == ord('q'):

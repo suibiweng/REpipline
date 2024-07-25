@@ -17,37 +17,13 @@ from watchdog.events import FileSystemEventHandler
 import NDIlib as ndi
 import signal
 import keyboard
-
-# os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-# import mediapipe as mp
-# import mediapipe as mp
-
-
-
 import pymeshlab
-
-
 from PIL import Image
 import json
 
 
 
 
-# mp_objectron = mp.solutions.objectron
-# mp_drawing = mp.solutions.drawing_utils
-# mp_objectron = mp.solutions.objectron
-# mp_drawing = mp.solutions.drawing_utils
-
-# objectron = mp_objectron.Objectron(static_image_mode=False,
-#                             max_num_objects=5,
-#                             min_detection_confidence=0.5,
-#                             min_tracking_confidence=0.7,
-#                             model_name='Cup')
-# objectron = mp_objectron.Objectron(static_image_mode=False,
-#                             max_num_objects=5,
-#                             min_detection_confidence=0.5,
-#                             min_tracking_confidence=0.7,
-#                             model_name='Cup')
 
 
 Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
@@ -143,42 +119,14 @@ def main_loop():
             #print('Video data received (%dx%d).' % (v.xres, v.yres))
             frame = np.copy(v.data)
             cv2.imshow('ndi image', frame)
-            ndi.recv_free_video_v2(ndi_recv, v)
-
-
-            # image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # results = objectron.process(image)
-
-            # if results.detected_objects:
-            #     for detected_object in results.detected_objects:
-            #         print(detected_object)
-            #         mp_drawing.draw_landmarks(image, 
-            #                           detected_object.landmarks_2d, 
-            #                           mp_objectron.BOX_CONNECTIONS)
-          
-            #         mp_drawing.draw_axis(image, 
-            #                      detected_object.rotation,
-            #                      detected_object.translation)
-
-            #cv2.imshow('MediaPipe Objectron_NDI', cv2.flip(image, 1))
-
-
-
-        
-
-        
-            
-            
+            ndi.recv_free_video_v2(ndi_recv, v)          
             global saveImageSwitch
             if saveImageSwitch:
                 # print("saving from the main loop")
                 global saveImageName
                 capture_frame_and_save(frame, saveImageName)
                 saveImageSwitch = False
-                
-
-            
-
+    
             key = cv2.waitKey(1)
             
             if key == 27:
@@ -254,14 +202,8 @@ def default_handler(address, *args):
         # Create a Path object
         imgPath_obj = Path(imgPath)
         jsonFilename="./output/"+args[0]+"/" +args[0]+".json"
-
-        # Create the directory
         imgPath_obj.mkdir(parents=True, exist_ok=True)
-        # if not folder_path.exists():
-        #     folder_path.mkdir()
-        #     print(f"Folder '{imgPath}' created successfully.")
-        # else:
-        #     print(f"Folder '{imgPath}' already exists.")
+
 
     # store the info
     # on receiving message, take a photo
@@ -282,7 +224,7 @@ def default_handler(address, *args):
         print(saveImageName)
         global saveImageSwitch
         saveImageSwitch = True
-        #saveFile.close()
+
     
     if address == "/endRecord":
         print("finish recording")
@@ -756,61 +698,6 @@ def run_inpainting(input_folder, output_dir):
         ObjPath=testpath
         NerfObj (colmapjson,ObjPath,"target")
        
-        # testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
-        # testpath= os.path.abspath(testpath)
-        
-        # BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
-        
-        # BKfolderPath=os.path.abspath(BKfolderPath)
-        # ObjPath=testpath
-
-        
-        # ObjJsonPath=ColmapObj(ObjPath)
-        # if(ObjJsonPath != None):
-        #     NerfObj (ObjJsonPath,ObjPath,"target")
-        # else:
-        #     print("Colmap Error")
-  
-  
-        # BKJsonPath=ColmapObj(BKfolderPath)
-        # if(BKJsonPath != None):
-        #     Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
-        # else:
-        #     print("BK Colmap Error")
-  
-        
-       
-           
-
-    
-     
-        
-  
-        
-        
-        # BKfolderPath=input_folder+"\\"+"GenerateImages\\images\\"
-        # ObjPath=input_folder
-        
-        # ObjJsonPath=ColmapObj(ObjPath)
-           
-        # if(ObjJsonPath != None):
-        #     objdone=NerfObj (ObjJsonPath,ObjPath,"target")
-        # else:
-        #     print("Error in colmap")
-        #     return False
-        # if(objdone):
-        #     BKJsonPath=ColmapObj(BKfolderPath)
-        #     if(BKJsonPath != None):
-        #         Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
-        
-        
-
-        
-
-            
-        
-
-        
         # Optional: Print stdout
         if result.stdout:
             print("Output:", result.stdout)
@@ -835,11 +722,8 @@ def ColmapObj (input_folder):
     if result.returncode == 0:
         print("Colmap executed successfully.")
         run_inpainting(input_folder,input_folder)
-        
-        
         return jsonFilepath
         # Optional: Print stdout
-      
         
     else:
         print("Command failed with return code", result.returncode)
@@ -872,6 +756,11 @@ def NerfObj (input_json,output_folder,Objtype):
         print("Command failed with return code", result.returncode)
         # Print stderr for error
         return False
+    
+    
+    
+    
+    
     
     
     
@@ -918,45 +807,45 @@ def zip_folder_with_delay(folder_path, output_zip, delay=3):
 
 
 
-def upload_file_to_server( local_file_path,server_ip = '34.106.250.143', server_port=22):
+# def upload_file_to_server( local_file_path,server_ip = '34.106.250.143', server_port=22):
    
     
-    try:
-        # 創建SSH客戶端對象
-        ssh = paramiko.SSHClient()
+#     try:
+#         # 創建SSH客戶端對象
+#         ssh = paramiko.SSHClient()
 
-        # 自動添加主機密鑰
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+#         # 自動添加主機密鑰
+#         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        # 使用SSH金鑰進行連接
-        ssh.connect(server_ip, port=server_port, username='suibidata2023', key_filename='suibikey.ppk')
+#         # 使用SSH金鑰進行連接
+#         ssh.connect(server_ip, port=server_port, username='suibidata2023', key_filename='suibikey.ppk')
 
-        # 創建SFTP客戶端對象
-        sftp = ssh.open_sftp()
+#         # 創建SFTP客戶端對象
+#         sftp = ssh.open_sftp()
 
-        # 指定本地文件和遠程文件的路徑
-        fileName = local_file_path
-        remote_file_path = '/var/www/html/upload/'
-        upload_file = remote_file_path + os.path.basename(fileName)
+#         # 指定本地文件和遠程文件的路徑
+#         fileName = local_file_path
+#         remote_file_path = '/var/www/html/upload/'
+#         upload_file = remote_file_path + os.path.basename(fileName)
 
-        # 上傳文件
-        sftp.put(fileName, upload_file)
+#         # 上傳文件
+#         sftp.put(fileName, upload_file)
 
-        # 關閉SFTP連接
-        sftp.close()
+#         # 關閉SFTP連接
+#         sftp.close()
 
-        uploaded_url = f'http://{server_ip}/upload/{os.path.basename(fileName)}'  # Construct the uploaded URL
-        print(f' {local_file_path} is uploaded {server_ip} at {remote_file_path}。')
-        print(f'Download: {uploaded_url}')
-        #send_osc_message(VRip, 1337, "/GenrateModel",[modelId,uploaded_url])
+#         uploaded_url = f'http://{server_ip}/upload/{os.path.basename(fileName)}'  # Construct the uploaded URL
+#         print(f' {local_file_path} is uploaded {server_ip} at {remote_file_path}。')
+#         print(f'Download: {uploaded_url}')
+#         #send_osc_message(VRip, 1337, "/GenrateModel",[modelId,uploaded_url])
         
-        return uploaded_url  # Return the uploaded URL as a string
-    except Exception as e:
-        print(f'Erro：{str(e)}')
-        return None  # Return None in case of an error
-    finally:
-        # 關閉SSH連接
-        ssh.close()
+#         return uploaded_url  # Return the uploaded URL as a string
+#     except Exception as e:
+#         print(f'Erro：{str(e)}')
+#         return None  # Return None in case of an error
+#     finally:
+#         # 關閉SSH連接
+#         ssh.close()
         
 
 
@@ -996,18 +885,12 @@ def oscinit():
     global osc_server
     dispatcherosc = Dispatcher()
     
-    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+
     # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
     osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
-    
-    
-    
-    #  OSCserver = osc_server.ForkingOSCUDPServer((OSCaddress, OSCport), dispatcher)
-    # OSCserver_thread = threading.Thread(target=OSCserver.serve_forever)
-    # OSCserver_thread.start()
     print("Serving on {}".format(osc_server.server_address))
    # osc_server.serve_forever()
 
@@ -1039,8 +922,7 @@ if __name__ == '__main__':
     
     # main_thread = threading.Thread(target=main_loop)
     # main_thread.start()
-    # main_thread = threading.Thread(target=main_loop)
-    # main_thread.start()
+
     
     try:
          
