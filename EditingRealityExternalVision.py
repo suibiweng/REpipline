@@ -9,6 +9,7 @@ import time
 # Global variables for frames
 ndi_frame = None
 ipcam_frame = None
+zoom_factor = 1.3
 
 # Function to receive and display the NDI stream
 def ndi_receiver():
@@ -100,9 +101,24 @@ def resize_frames_to_same_height(frame1, frame2):
 
     return frame1, frame2
 
+# Function to apply zoom to the NDI frame
+def apply_zoom(frame, zoom_factor):
+    height, width = frame.shape[:2]
+    center_x, center_y = width // 2, height // 2
+    new_width, new_height = int(width * zoom_factor), int(height * zoom_factor)
+
+    left = max(center_x - new_width // 2, 0)
+    right = min(center_x + new_width // 2, width)
+    top = max(center_y - new_height // 2, 0)
+    bottom = min(center_y + new_height // 2, height)
+
+    zoomed_frame = frame[top:bottom, left:right]
+    zoomed_frame = cv2.resize(zoomed_frame, (width, height))
+    return zoomed_frame
+
 # Main function to display both streams side by side
 def main():
-    global ndi_frame, ipcam_frame
+    global ndi_frame, ipcam_frame, zoom_factor
 
     # URL of the IP camera feed
     url = "http://192.168.0.134:8001/video_feed"
@@ -119,16 +135,23 @@ def main():
 
     while True:
         if ndi_frame is not None and ipcam_frame is not None:
-            ndi_frame, ipcam_frame = resize_frames_to_same_height(ndi_frame, ipcam_frame)
-            combined_frame = np.hstack((ndi_frame, ipcam_frame))
+            zoomed_ndi_frame = apply_zoom(ndi_frame, zoom_factor)
+            zoomed_ndi_frame, ipcam_frame = resize_frames_to_same_height(zoomed_ndi_frame, ipcam_frame)
+            combined_frame = np.hstack((zoomed_ndi_frame, ipcam_frame))
             cv2.imshow('Combined Stream', combined_frame)
         elif ndi_frame is not None:
-            cv2.imshow('NDI Stream', ndi_frame)
+            zoomed_ndi_frame = apply_zoom(ndi_frame, zoom_factor)
+            cv2.imshow('NDI Stream', zoomed_ndi_frame)
         elif ipcam_frame is not None:
             cv2.imshow('IP Camera Stream', ipcam_frame)
 
-        if cv2.waitKey(1) & 0xff == 27:
+        key = cv2.waitKey(1) & 0xff
+        if key == 27:  # Escape key
             break
+        elif key == ord('='):  # Zoom in
+            zoom_factor += 0.1
+        elif key == ord('-'):  # Zoom out
+            zoom_factor = max(zoom_factor - 0.1, 0.1)  # Prevent zooming out too much
 
     cv2.destroyAllWindows()
 
