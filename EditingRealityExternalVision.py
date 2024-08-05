@@ -5,10 +5,12 @@ import requests
 import NDIlib as ndi
 import threading
 import time
+from pythonosc import dispatcher, osc_server
 
 # Global variables for frames
 ndi_frame = None
 ipcam_frame = None
+campoints = None
 
 # Function to receive and display the NDI stream
 def ndi_receiver():
@@ -100,6 +102,32 @@ def resize_frames_to_same_height(frame1, frame2):
 
     return frame1, frame2
 
+# OSC message handler
+def osc_handler(address, *args):
+    global campoints
+
+    if address == "/InpaintBackGround":
+        urid = args[0]
+        campoints = (int(args[1]), int(args[2]))
+
+        if ndi_frame is not None:
+            # Draw a dot on the NDI frame at the specified campoints
+            cv2.circle(ndi_frame, campoints, 10, (0, 0, 255), -1)  # Red dot
+            cv2.imwrite(f"{urid}_Depth.png", ndi_frame)
+        if ipcam_frame is not None:
+            cv2.imwrite(f"{urid}.png", ipcam_frame)
+
+        print(f"Saved frames with URID: {urid} and campoints: {campoints}")
+
+# Function to start the OSC server
+def start_osc_server(ip="0.0.0.0", port=5005):
+    disp = dispatcher.Dispatcher()
+    disp.map("/InpaintBackGround", osc_handler)
+
+    server = osc_server.ThreadingOSCUDPServer((ip, port), disp)
+    print(f"OSC server running on {ip}:{port}")
+    server.serve_forever()
+
 # Main function to display both streams side by side
 def main():
     global ndi_frame, ipcam_frame
@@ -116,6 +144,11 @@ def main():
     ipcam_thread = threading.Thread(target=ipcam_receiver, args=(url,))
     ipcam_thread.daemon = True
     ipcam_thread.start()
+
+    # Start the OSC server thread
+    osc_thread = threading.Thread(target=start_osc_server)
+    osc_thread.daemon = True
+    osc_thread.start()
 
     while True:
         if ndi_frame is not None and ipcam_frame is not None:
@@ -134,3 +167,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
