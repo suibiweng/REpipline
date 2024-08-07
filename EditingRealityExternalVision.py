@@ -108,19 +108,23 @@ def osc_handler(address, *args):
 
     if address == "/InpaintBackGround":
         urid = args[0]
+    #    // print(urid)
         campoints = (int(args[1]), int(args[2]))
-
+        adjPointDepth = (0,0)
+        adjPointRGB = (0,0)
         if ndi_frame is not None:
             # Draw a dot on the NDI frame at the specified campoints
-            cv2.circle(ndi_frame, campoints, 10, (0, 0, 255), -1)  # Red dot
-            cv2.imwrite(f"{urid}_Depth.png", ndi_frame)
+            cv2.circle(ndi_frame,(campoints[0]-50,campoints[1]+250), 10, (0, 0, 255), -1)  # Red dot
+            # cv2.imwrite(f"{urid}_Depth.png", ndi_frame)
         if ipcam_frame is not None:
-            cv2.imwrite(f"{urid}.png", ipcam_frame)
+            cv2.circle(ipcam_frame, (campoints[0]-50,campoints[1]+150), 10, (0, 0, 255), -1)
+        
+            # cv2.imwrite(f"{urid}.png", ipcam_frame)
 
         print(f"Saved frames with URID: {urid} and campoints: {campoints}")
 
-# Function to start the OSC server
-def start_osc_server(ip="0.0.0.0", port=5005):
+# Function to start the OSC server'192.168.0.139', 6161
+def start_osc_server(ip="192.168.0.139", port=6161):
     disp = dispatcher.Dispatcher()
     disp.map("/InpaintBackGround", osc_handler)
 

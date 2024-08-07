@@ -21,19 +21,10 @@ import pymeshlab
 from PIL import Image
 import json
 
-
-
-
-
-
 Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
 InstantNGP_MoudlePath = "C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\"
 TexTurePaper_modulePath=""
     
-
-
-
-
 
 saveImageName = "test.jpg"
 saveImageSwitch = False
@@ -757,14 +748,6 @@ def NerfObj (input_json,output_folder,Objtype):
         # Print stderr for error
         return False
     
-    
-    
-    
-    
-    
-    
-    
-
 def zip_file_with_delay(file_path, output_zip, delay=3):
     time.sleep(delay)
 
@@ -806,49 +789,6 @@ def zip_folder_with_delay(folder_path, output_zip, delay=3):
         
 
 
-
-# def upload_file_to_server( local_file_path,server_ip = '34.106.250.143', server_port=22):
-   
-    
-#     try:
-#         # 創建SSH客戶端對象
-#         ssh = paramiko.SSHClient()
-
-#         # 自動添加主機密鑰
-#         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-#         # 使用SSH金鑰進行連接
-#         ssh.connect(server_ip, port=server_port, username='suibidata2023', key_filename='suibikey.ppk')
-
-#         # 創建SFTP客戶端對象
-#         sftp = ssh.open_sftp()
-
-#         # 指定本地文件和遠程文件的路徑
-#         fileName = local_file_path
-#         remote_file_path = '/var/www/html/upload/'
-#         upload_file = remote_file_path + os.path.basename(fileName)
-
-#         # 上傳文件
-#         sftp.put(fileName, upload_file)
-
-#         # 關閉SFTP連接
-#         sftp.close()
-
-#         uploaded_url = f'http://{server_ip}/upload/{os.path.basename(fileName)}'  # Construct the uploaded URL
-#         print(f' {local_file_path} is uploaded {server_ip} at {remote_file_path}。')
-#         print(f'Download: {uploaded_url}')
-#         #send_osc_message(VRip, 1337, "/GenrateModel",[modelId,uploaded_url])
-        
-#         return uploaded_url  # Return the uploaded URL as a string
-#     except Exception as e:
-#         print(f'Erro：{str(e)}')
-#         return None  # Return None in case of an error
-#     finally:
-#         # 關閉SSH連接
-#         ssh.close()
-        
-
-
 def get_obj_file(directory):
     """
     Returns the absolute path to the first file ending with '.obj' in the specified directory.
@@ -886,9 +826,9 @@ def oscinit():
     dispatcherosc = Dispatcher()
     
 
-    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
-    osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
+    # osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
     print("Serving on {}".format(osc_server.server_address))
