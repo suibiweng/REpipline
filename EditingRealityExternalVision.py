@@ -6,11 +6,42 @@ import NDIlib as ndi
 import threading
 import time
 from pythonosc import dispatcher, osc_server
+from pythonosc.udp_client import SimpleUDPClient
+
+import mediapipe as mp
+import time
+
+mp_objectron = mp.solutions.objectron
+mp_drawing = mp.solutions.drawing_utils
 
 # Global variables for frames
 ndi_frame = None
 ipcam_frame = None
 campoints = None
+isTracking=False
+
+
+VRip='192.168.0.213'
+
+objectron = mp_objectron.Objectron(static_image_mode=False,
+                            max_num_objects=1,
+                            min_detection_confidence=0.5,
+                            min_tracking_confidence=0.3,
+                            model_name='Camera')
+
+#'Cup', 'Shoe', 'Camera' and 'Chair'.
+
+def iniDetection(model_name):
+    objectron = mp_objectron.Objectron(static_image_mode=False,
+                            max_num_objects=1,
+                            min_detection_confidence=0.5,
+                            min_tracking_confidence=0.3,
+                            model_name='Camera')
+    
+    
+    
+
+
 
 # Function to receive and display the NDI stream
 def ndi_receiver():
@@ -78,6 +109,28 @@ def ipcam_receiver(url):
                         jpg = bytes[a:b+2]
                         bytes = bytes[b+2:]
                         ipcam_frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        
+                        if(isTracking):
+                            results = objectron.process(ipcam_frame)
+                            if results.detected_objects:
+                             for detected_object in results.detected_objects:
+            #print(detected_object)
+                                mp_drawing.draw_landmarks(ipcam_frame, 
+                                      detected_object.landmarks_2d, 
+                                      mp_objectron.BOX_CONNECTIONS)
+          
+                                mp_drawing.draw_axis(ipcam_frame, 
+                                    detected_object.rotation,
+                                    detected_object.translation)
+                                 # print (detected_object.rotation+" "+detected_object.translation)
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
             else:
                 print("Failed to connect to the server, status code:", cap.status_code)
                 time.sleep(5)  # Wait before trying to reconnect
@@ -122,11 +175,42 @@ def osc_handler(address, *args):
             # cv2.imwrite(f"{urid}.png", ipcam_frame)
 
         print(f"Saved frames with URID: {urid} and campoints: {campoints}")
+        
+        
+def tracker_handler(address, *args):
+    global campoints
+
+    if address == "/SetTracker":
+        urid = args[0]
+    #    // print(urid)
+        isTracking=True
+        iniDetection(args[1])
+        
+        
+        
+def sendPositiontoVR(rotation,translation):
+    
+    data2 = [translation, rotation]
+    send_osc_message(VRip, 1337, "/GenrateModel", data2)
+    
+    
+
+def send_osc_message(ip, port, address, data):
+    try:
+        client = SimpleUDPClient(ip, port)  # Create client
+        client.send_message(address, data)  # Send OSC message
+    except Exception as e:
+        print(f"Error sending OSC message: {e}")
+    
+    
+        
+    
 
 # Function to start the OSC server'192.168.0.139', 6161
 def start_osc_server(ip="192.168.0.139", port=6161):
     disp = dispatcher.Dispatcher()
     disp.map("/InpaintBackGround", osc_handler)
+    disp.map("/SetTracker", tracker_handler)
 
     server = osc_server.ThreadingOSCUDPServer((ip, port), disp)
     print(f"OSC server running on {ip}:{port}")
