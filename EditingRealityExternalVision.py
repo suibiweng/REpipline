@@ -10,6 +10,7 @@ from pythonosc.udp_client import SimpleUDPClient
 
 import mediapipe as mp
 import time
+from pathlib import Path
 
 mp_objectron = mp.solutions.objectron
 mp_drawing = mp.solutions.drawing_utils
@@ -156,7 +157,7 @@ def resize_frames_to_same_height(frame1, frame2):
     return frame1, frame2
 
 # OSC message handler
-def osc_handler(address, *args):
+def InpaintBackGround(address, *args):
     global campoints
 
     if address == "/InpaintBackGround":
@@ -201,6 +202,41 @@ def send_osc_message(ip, port, address, data):
         client.send_message(address, data)  # Send OSC message
     except Exception as e:
         print(f"Error sending OSC message: {e}")
+
+
+def getallAddress(address, *args):
+    
+    if address == "/startRecord":
+        print("start to")
+        serials_data = []
+        imgPath ="./output/"+args[0]+"/"  
+        URLid=args[0]
+        # Create a Path object
+        imgPath_obj = Path(imgPath)
+        jsonFilename="./output/"+args[0]+"/" +args[0]+".json"
+        imgPath_obj.mkdir(parents=True, exist_ok=True)
+    
+    if address == "/imagePath":
+        #saveFile = open(imgPath+"/data.txt", "w")
+        print("a new frame")
+        print(args[0])
+        saveImageName = imgPath+args[0]
+        serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
+        picCount+=1
+        
+        
+        
+
+        #saveFile.write(saveImageName + "\n")
+        #saveFile.write(args[1])
+        
+        print(saveImageName)
+        global saveImageSwitch
+        saveImageSwitch = True
+
+
+
+
     
     
         
@@ -209,8 +245,9 @@ def send_osc_message(ip, port, address, data):
 # Function to start the OSC server'192.168.0.139', 6161
 def start_osc_server(ip="192.168.0.139", port=6161):
     disp = dispatcher.Dispatcher()
-    disp.map("/InpaintBackGround", osc_handler)
+    disp.map("/InpaintBackGround", InpaintBackGround)
     disp.map("/SetTracker", tracker_handler)
+    #disp.set_default_handler(default_handler)
 
     server = osc_server.ThreadingOSCUDPServer((ip, port), disp)
     print(f"OSC server running on {ip}:{port}")

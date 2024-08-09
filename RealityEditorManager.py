@@ -20,6 +20,7 @@ import keyboard
 import pymeshlab
 from PIL import Image
 import json
+import sys
 
 Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
 InstantNGP_MoudlePath = "C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\"
@@ -63,65 +64,114 @@ AWB = True
 # Face recognition and opencv setup
 
 
-def main_loop():
-    global mp_objectron
-    global mp_drawing 
+# def main_loop():
+#     global mp_objectron
+#     global mp_drawing 
 
-    global objectron
+#     global objectron
 
 
     
-    if not ndi.initialize():
-        return 0
+#     if not ndi.initialize():
+#         return 0
 
-    ndi_find = ndi.find_create_v2()
+#     ndi_find = ndi.find_create_v2()
 
-    if ndi_find is None:
-        return 0
+#     if ndi_find is None:
+#         return 0
 
-    sources = []
-    while not len(sources) > 0:
-        print('Looking for sources ...')
-        ndi.find_wait_for_sources(ndi_find, 1000)
-        sources = ndi.find_get_current_sources(ndi_find)
+#     sources = []
+#     while not len(sources) > 0:
+#         print('Looking for sources ...')
+#         ndi.find_wait_for_sources(ndi_find, 1000)
+#         sources = ndi.find_get_current_sources(ndi_find)
        
 
-    ndi_recv_create = ndi.RecvCreateV3()
-    ndi_recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
-    ndi_recv = ndi.recv_create_v3(ndi_recv_create)
+#     ndi_recv_create = ndi.RecvCreateV3()
+#     ndi_recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
+#     ndi_recv = ndi.recv_create_v3(ndi_recv_create)
 
 
 
-    if ndi_recv is None:
-        print("None")
-        return 0
+#     if ndi_recv is None:
+#         print("None")
+#         return 0
 
-    ndi.recv_connect(ndi_recv, sources[0])
-    ndi.find_destroy(ndi_find)
+#     ndi.recv_connect(ndi_recv, sources[0])
+#     ndi.find_destroy(ndi_find)
     
-    
-    
-    
-    while True:
+#     while True:
         
-        t, v, _, _ = ndi.recv_capture_v2(ndi_recv, 5000)
+#         t, v, _, _ = ndi.recv_capture_v2(ndi_recv, 5000)
 
-        if t == ndi.FRAME_TYPE_VIDEO:
-            #print('Video data received (%dx%d).' % (v.xres, v.yres))
-            frame = np.copy(v.data)
-            cv2.imshow('ndi image', frame)
-            ndi.recv_free_video_v2(ndi_recv, v)          
-            global saveImageSwitch
-            if saveImageSwitch:
-                # print("saving from the main loop")
-                global saveImageName
-                capture_frame_and_save(frame, saveImageName)
-                saveImageSwitch = False
+#         if t == ndi.FRAME_TYPE_VIDEO:
+#             #print('Video data received (%dx%d).' % (v.xres, v.yres))
+#             frame = np.copy(v.data)
+#             cv2.imshow('ndi image', frame)
+#             ndi.recv_free_video_v2(ndi_recv, v)          
+#             global saveImageSwitch
+#             if saveImageSwitch:
+#                 # print("saving from the main loop")
+#                 global saveImageName
+#                 capture_frame_and_save(frame, saveImageName)
+#                 saveImageSwitch = False
     
-            key = cv2.waitKey(1)
+#             key = cv2.waitKey(1)
             
-            if key == 27:
-                 break
+#             if key == 27:
+#                  break
+
+
+
+
+
+
+
+
+
+
+            
+
+            
+def ipcam_receiver(url):
+    global ipcam_frame
+
+    while True:
+        try:
+            cap = requests.get(url, stream=True, timeout=10)
+            if cap.status_code == 200:
+                bytes = b''
+                for chunk in cap.iter_content(chunk_size=1024):
+                    bytes += chunk
+                    a = bytes.find(b'\xff\xd8')
+                    b = bytes.find(b'\xff\xd9')
+                    if a != -1 and b != -1:
+                        jpg = bytes[a:b+2]
+                        bytes = bytes[b+2:]
+                        ipcam_frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        
+            #             if(isTracking):
+            #                 results = objectron.process(ipcam_frame)
+            #                 if results.detected_objects:
+            #                  for detected_object in results.detected_objects:
+            # #print(detected_object)
+            #                     mp_drawing.draw_landmarks(ipcam_frame, 
+            #                           detected_object.landmarks_2d, 
+            #                           mp_objectron.BOX_CONNECTIONS)
+          
+            #                     mp_drawing.draw_axis(ipcam_frame, 
+            #                         detected_object.rotation,
+            #                         detected_object.translation)
+            else:
+                print("Failed to connect to the server, status code:", cap.status_code)
+                time.sleep(5)  # Wait before trying to reconnect
+        except requests.exceptions.RequestException as e:
+            print("Connection error:", e)
+            time.sleep(5)  # Wait before trying to reconnect
+        except Exception as e:
+            print("An unexpected error occurred:", e)
+            time.sleep(5)  # Wait before trying to reconnect
+
             
 
 
@@ -236,6 +286,7 @@ def default_handler(address, *args):
         saveImageName="" 
         jsonFilename=""
         picCount=0
+
     if address =="/InstructModify":
         delete_file_if_exists(f"{args[2]}_Instruction.zip")
         URLid=args[2]
@@ -840,7 +891,113 @@ def oscinit():
 
 def exit_program():
     print("Exiting the program.")
-    os.kill(os.getpid(), signal.SIGTERM)     
+    os.kill(os.getpid(), signal.SIGTERM)
+
+# Function to receive and display the NDI stream
+def ndi_receiver():
+    global ndi_frame
+
+    if not ndi.initialize():
+        print("Cannot initialize NDI")
+        return 0
+
+    ndi_find = ndi.find_create_v2()
+
+    if ndi_find is None:
+        print("Cannot create NDI find")
+        return 0
+
+    sources = []
+    while not len(sources) > 0:
+        print('Looking for NDI sources...')
+        ndi.find_wait_for_sources(ndi_find, 1000)
+        sources = ndi.find_get_current_sources(ndi_find)
+
+    print("NDI sources found:", sources)
+    ndi_recv_create = ndi.RecvCreateV3()
+    ndi_recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
+
+    ndi_recv = ndi.recv_create_v3(ndi_recv_create)
+
+    if ndi_recv is None:
+        print("Cannot create NDI receiver")
+        return 0
+
+    ndi.recv_connect(ndi_recv, sources[0])
+
+    ndi.find_destroy(ndi_find)
+
+    while True:
+        t, v, _, _ = ndi.recv_capture_v2(ndi_recv, 5000)
+
+        if t == ndi.FRAME_TYPE_VIDEO:
+            frame = np.copy(v.data)
+            ndi.recv_free_video_v2(ndi_recv, v)
+            # Convert 4-channel BGRX_BGRA to 3-channel BGR
+            ndi_frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+
+        if cv2.waitKey(1) & 0xff == 27:
+            break
+
+    ndi.recv_destroy(ndi_recv)
+    ndi.destroy()
+
+
+
+
+def resize_frames_to_same_height(frame1, frame2):
+    height1, width1 = frame1.shape[:2]
+    height2, width2 = frame2.shape[:2]
+
+    if height1 > height2:
+        new_width2 = int(width2 * height1 / height2)
+        frame2 = cv2.resize(frame2, (new_width2, height1))
+    else:
+        new_width1 = int(width1 * height2 / height1)
+        frame1 = cv2.resize(frame1, (new_width1, height2))
+
+    return frame1, frame2
+
+
+
+def main():
+    global ndi_frame, ipcam_frame
+
+    # URL of the IP camera feed
+    url = "http://192.168.0.134:8001/video_feed"
+
+    # Start the NDI receiver thread
+    ndi_thread = threading.Thread(target=ndi_receiver)
+    ndi_thread.daemon = True
+    ndi_thread.start()
+
+    # Start the IP camera receiver thread
+    ipcam_thread = threading.Thread(target=ipcam_receiver, args=(url,))
+    ipcam_thread.daemon = True
+    ipcam_thread.start()
+
+    # # Start the OSC server thread
+    # osc_thread = threading.Thread(target=start_osc_server)
+    # osc_thread.daemon = True
+    # osc_thread.start()
+
+    while True:
+        if ndi_frame is not None and ipcam_frame is not None:
+            ndi_frame, ipcam_frame = resize_frames_to_same_height(ndi_frame, ipcam_frame)
+            combined_frame = np.hstack((ndi_frame, ipcam_frame))
+            cv2.imshow('Combined Stream', combined_frame)
+        elif ndi_frame is not None:
+            cv2.imshow('NDI Stream', ndi_frame)
+        elif ipcam_frame is not None:
+            cv2.imshow('IP Camera Stream', ipcam_frame)
+
+        if cv2.waitKey(1) & 0xff == 27:
+            break
+
+    cv2.destroyAllWindows()
+
+
+
 
 if __name__ == '__main__':
  
@@ -862,6 +1019,10 @@ if __name__ == '__main__':
     
     # main_thread = threading.Thread(target=main_loop)
     # main_thread.start()
+
+    main()
+
+ 
 
     
     try:
