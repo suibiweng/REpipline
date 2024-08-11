@@ -35,6 +35,11 @@ serials_data = []
 URLid=""
 picCount =0
 
+ndi_frame = None
+ipcam_frame = None
+campoints = None
+isTracking=False
+
 
 
 def capture_frame_and_save(frame, output_filename):
@@ -1009,6 +1014,8 @@ if __name__ == '__main__':
     print("Inpainting Module Path:", Inpainting_Anything_ModulePath)
     print("Instant NGP Module Path:", InstantNGP_MoudlePath)
     print("TexttuerePath:",TexTurePaper_modulePath)
+
+    process = subprocess.Popen(["RunServer.bat"], shell=True)
     
     
     
@@ -1017,10 +1024,10 @@ if __name__ == '__main__':
     print("press ESC to exit")
 
     
-    # main_thread = threading.Thread(target=main_loop)
-    # main_thread.start()
+    main_thread = threading.Thread(target=main)
+    main_thread.start()
 
-    main()
+    #main()
 
  
 

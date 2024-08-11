@@ -218,11 +218,11 @@ def getallAddress(address, *args):
     
     if address == "/imagePath":
         #saveFile = open(imgPath+"/data.txt", "w")
-        print("a new frame")
-        print(args[0])
-        saveImageName = imgPath+args[0]
-        serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
-        picCount+=1
+        # print("a new frame")
+        # print(args[0])
+        # saveImageName = imgPath+args[0]
+        # serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
+        # picCount+=1
         
         
         
