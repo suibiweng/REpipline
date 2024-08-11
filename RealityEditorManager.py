@@ -238,6 +238,21 @@ def default_handler(address, *args):
     print(args)
     
     
+    if address== "/captureSpatialPicture":
+        urid = args[0]
+        campoints = (int(args[1]), int(args[2]))
+        adjPointDepth = (0,0)
+        adjPointRGB = (0,0)
+        if ndi_frame is not None:
+            # Draw a dot on the NDI frame at the specified campoints
+            cv2.circle(ndi_frame,(campoints[0]-50,campoints[1]+250), 10, (0, 0, 255), -1)  # Red dot
+            cv2.imwrite(f"{urid}_Depth.png", ndi_frame)
+        if ipcam_frame is not None:
+            cv2.circle(ipcam_frame, (campoints[0]-50,campoints[1]+150), 10, (0, 0, 255), -1)
+            cv2.imwrite(f"{urid}.png", ipcam_frame)
+        
+    
+    
   
     if address == "/startRecord":
         
@@ -260,16 +275,68 @@ def default_handler(address, *args):
         saveImageName = imgPath+args[0]
         serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
         picCount+=1
-        
-        
-        
-
-        #saveFile.write(saveImageName + "\n")
-        #saveFile.write(args[1])
-        
         print(saveImageName)
         global saveImageSwitch
         saveImageSwitch = True
+    
+    if address == "/RoomScanStart":
+        
+        print("start to")
+        serials_data = []
+        imgPath ="./output/"+args[0]+"/"  
+        URLid=args[0]
+        # Create a Path object
+        imgPath_obj = Path(imgPath)
+        jsonFilename="./output/"+args[0]+"/" +args[0]+".json"
+        imgPath_obj.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(f"{imgPath}\{args[0]}.png", ipcam_frame)
+        
+        
+        
+        
+    
+        
+    if address == "/Roomscan":
+        print("a new frame")
+        print(args[0])
+        saveImageName = imgPath+args[0]
+        serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
+        picCount+=1
+        print(saveImageName)
+        global saveImageSwitch
+        saveImageSwitch = True
+   
+   
+   
+   
+   
+    if address == "/RoomscanEnd":
+        #         print("finish recording")
+        # store_serials_data(serials_data, jsonFilename)
+       # testdata
+      
+        # URLid="20240229125610"
+        # picCount=32
+        # serials_data.append({"Filename": "1", "Coordinates":  [282.44,231.3]})
+        
+        
+        testpath = "./output/"+URLid
+        testvideoName=URLid+".mp4"
+        
+        
+        ObjJsonPath=ColmapObj(testpath)
+        
+        
+        time.sleep(3)
+        if(ObjJsonPath != None):
+            objdone=NerfObj (ObjJsonPath,ObjPath,"target")
+        # ffmpegCall(testpath, testvideoName, 30)       
+        
+        saveImageName="" 
+        jsonFilename=""
+        picCount=0
+
+        
 
     
     if address == "/endRecord":

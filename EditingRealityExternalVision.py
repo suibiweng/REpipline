@@ -230,7 +230,7 @@ def getallAddress(address, *args):
         #saveFile.write(saveImageName + "\n")
         #saveFile.write(args[1])
         
-        print(saveImageName)
+        # print(saveImageName)
         global saveImageSwitch
         saveImageSwitch = True
 
