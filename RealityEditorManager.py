@@ -219,7 +219,10 @@ def default_handler(address, *args):
         imgPath_obj = Path(imgPath)
         jsonFilename="./output/"+args[0]+"/" +args[0]+".json"
         imgPath_obj.mkdir(parents=True, exist_ok=True)
-        cv2.imwrite(f"{imgPath}\{args[0]}.png", ipcam_frame)
+        
+        
+        
+
         
         
         
@@ -236,7 +239,13 @@ def default_handler(address, *args):
         # global saveImageSwitch
         # saveImageSwitch = True
         #cv2.imwrite(f"{saveImageName}_Depth.png", ndi_frame)
-        cv2.imwrite(f"{saveImageName}_RGB.png", ipcam_frame)
+        filename = f"{args[0]}.png"
+        full_path = imgPath_obj / filename
+        cv2.imwrite(str(full_path), ipcam_frame)
+        
+        
+        
+        #cv2.imwrite(f"{saveImageName}_RGB.png", ipcam_frame)
    
    
    
