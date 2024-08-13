@@ -65,76 +65,6 @@ def capture_frame_and_save(frame, output_filename):
 URL = "http://192.168.0.128"
 
 AWB = True
-
-# Face recognition and opencv setup
-
-
-# def main_loop():
-#     global mp_objectron
-#     global mp_drawing 
-
-#     global objectron
-
-
-    
-#     if not ndi.initialize():
-#         return 0
-
-#     ndi_find = ndi.find_create_v2()
-
-#     if ndi_find is None:
-#         return 0
-
-#     sources = []
-#     while not len(sources) > 0:
-#         print('Looking for sources ...')
-#         ndi.find_wait_for_sources(ndi_find, 1000)
-#         sources = ndi.find_get_current_sources(ndi_find)
-       
-
-#     ndi_recv_create = ndi.RecvCreateV3()
-#     ndi_recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
-#     ndi_recv = ndi.recv_create_v3(ndi_recv_create)
-
-
-
-#     if ndi_recv is None:
-#         print("None")
-#         return 0
-
-#     ndi.recv_connect(ndi_recv, sources[0])
-#     ndi.find_destroy(ndi_find)
-    
-#     while True:
-        
-#         t, v, _, _ = ndi.recv_capture_v2(ndi_recv, 5000)
-
-#         if t == ndi.FRAME_TYPE_VIDEO:
-#             #print('Video data received (%dx%d).' % (v.xres, v.yres))
-#             frame = np.copy(v.data)
-#             cv2.imshow('ndi image', frame)
-#             ndi.recv_free_video_v2(ndi_recv, v)          
-#             global saveImageSwitch
-#             if saveImageSwitch:
-#                 # print("saving from the main loop")
-#                 global saveImageName
-#                 capture_frame_and_save(frame, saveImageName)
-#                 saveImageSwitch = False
-    
-#             key = cv2.waitKey(1)
-            
-#             if key == 27:
-#                  break
-
-
-
-
-
-
-
-
-
-
             
 
             
@@ -245,11 +175,11 @@ def default_handler(address, *args):
         adjPointRGB = (0,0)
         if ndi_frame is not None:
             # Draw a dot on the NDI frame at the specified campoints
-            cv2.circle(ndi_frame,(campoints[0]-50,campoints[1]+250), 10, (0, 0, 255), -1)  # Red dot
+            # cv2.circle(ndi_frame,(campoints[0]-50,campoints[1]+250), 10, (0, 0, 255), -1)  # Red dot
             cv2.imwrite(f"{urid}_Depth.png", ndi_frame)
         if ipcam_frame is not None:
-            cv2.circle(ipcam_frame, (campoints[0]-50,campoints[1]+150), 10, (0, 0, 255), -1)
-            cv2.imwrite(f"{urid}.png", ipcam_frame)
+            # cv2.circle(ipcam_frame, (campoints[0]-50,campoints[1]+150), 10, (0, 0, 255), -1)
+            cv2.imwrite(f"{urid}_RGB.png", ipcam_frame)
         
     
     
@@ -300,12 +230,13 @@ def default_handler(address, *args):
         print("a new frame")
         print(args[0])
         saveImageName = imgPath+args[0]
-        serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
+        #serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
         picCount+=1
         print(saveImageName)
-        global saveImageSwitch
-        saveImageSwitch = True
-   
+        # global saveImageSwitch
+        # saveImageSwitch = True
+        #cv2.imwrite(f"{saveImageName}_Depth.png", ndi_frame)
+        cv2.imwrite(f"{saveImageName}_RGB.png", ipcam_frame)
    
    
    
