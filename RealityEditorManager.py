@@ -34,6 +34,7 @@ jsonFilename=""
 serials_data = []
 URLid=""
 picCount =0
+imgPath_obj=""
 
 ndi_frame = None
 ipcam_frame = None
@@ -162,6 +163,7 @@ def default_handler(address, *args):
     global serials_data
     global URLid
     global picCount
+    global imgPath_obj
     
     #Test Message Repeat sending
     print("receive:"+address)
@@ -240,7 +242,7 @@ def default_handler(address, *args):
         # saveImageSwitch = True
         #cv2.imwrite(f"{saveImageName}_Depth.png", ndi_frame)
         filename = f"{args[0]}.png"
-        full_path = imgPath_obj / filename
+        full_path = os.path.join(imgPath, filename) 
         cv2.imwrite(str(full_path), ipcam_frame)
         
         
