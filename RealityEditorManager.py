@@ -244,9 +244,6 @@ def default_handler(address, *args):
         filename = f"{args[0]}.png"
         full_path = os.path.join(imgPath, filename) 
         cv2.imwrite(str(full_path), ipcam_frame)
-        
-        
-        
         #cv2.imwrite(f"{saveImageName}_RGB.png", ipcam_frame)
    
    
@@ -255,37 +252,28 @@ def default_handler(address, *args):
     if address == "/RoomscanEnd":
         #         print("finish recording")
         # store_serials_data(serials_data, jsonFilename)
-       # testdata
-      
+        # testdata
         # URLid="20240229125610"
         # picCount=32
         # serials_data.append({"Filename": "1", "Coordinates":  [282.44,231.3]})
-        
-        
         testpath = "./output/"+URLid
         testvideoName=URLid+".mp4"
-        
-        
         ObjJsonPath=ColmapObj(testpath)
-        
         
         time.sleep(3)
         if(ObjJsonPath != None):
-            objdone=NerfObj (ObjJsonPath,ObjPath,"target")
+            objdone=NerfObj (ObjJsonPath,testpath,"target")
         # ffmpegCall(testpath, testvideoName, 30)       
         
         saveImageName="" 
         jsonFilename=""
         picCount=0
+        imgPath_obj=""
 
-        
-
-    
     if address == "/endRecord":
         print("finish recording")
         store_serials_data(serials_data, jsonFilename)
-       # testdata
-      
+        # testdata
         # URLid="20240229125610"
         # picCount=32
         # serials_data.append({"Filename": "1", "Coordinates":  [282.44,231.3]})
@@ -326,7 +314,6 @@ def default_handler(address, *args):
 
     if address =="/NerfTest":
         print("TestNerf")
-        
         URLid="20240311012159"
        
         testpath = "./output/"+URLid+"\\"+URLid+"\\"+URLid+"\\original_frames"
@@ -347,7 +334,6 @@ def default_handler(address, *args):
             BKJsonPath=ColmapObj(BKfolderPath)
             if(BKJsonPath != None):
                 Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
-        
         
         
         # if(Bkdone):
