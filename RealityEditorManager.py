@@ -155,6 +155,29 @@ def convert_coordinates(coordinates_str):
     return float(x), (float(y))
 
 
+
+
+# List to hold all the received crop box data
+crop_boxes = []
+
+# Define the callback function to handle the incoming OSC message
+def handle_create_crop_box(address, *args):
+    data = {
+        "urlid": args[0],
+        "position": {"x": args[1][0], "y": args[1][1], "z": args[1][2]},
+        "rotation": {"x": args[2][0], "y": args[2][1], "z": args[2][2], "w": args[2][3]},
+        "scale": {"x": args[3][0], "y": args[3][1], "z": args[3][2]}
+    }
+    
+    # Add the received data to the crop_boxes list
+    crop_boxes.append(data)
+    
+    # Save the accumulated data to a JSON file
+    with open('crop_boxes_data.json', 'w') as json_file:
+        json.dump(crop_boxes, json_file, indent=4)
+    
+    print(f"Received and saved data: {data}")
+
 # Function to handle OSC messages
 def default_handler(address, *args):
     global imgPath
@@ -876,8 +899,12 @@ def oscinit():
     global osc_server
     dispatcherosc = Dispatcher()
     
+    
+    
+    osc_server = osc_server.ThreadingOSCUDPServer(('10.0.0.123', 6161), dispatcherosc) #Bibi
+    
 
-    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
     # osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
@@ -886,6 +913,7 @@ def oscinit():
    # osc_server.serve_forever()
 
     dispatcherosc.map("/filter", print)
+    dispatcherosc.map("/CreateCropBox", handle_create_crop_box)
     dispatcherosc.set_default_handler(default_handler)
     
 
@@ -1019,8 +1047,8 @@ if __name__ == '__main__':
     print("press ESC to exit")
 
     
-    main_thread = threading.Thread(target=main)
-    main_thread.start()
+    # main_thread = threading.Thread(target=main)
+    # main_thread.start()
 
     #main()
 
