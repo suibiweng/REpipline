@@ -157,16 +157,24 @@ def convert_coordinates(coordinates_str):
 
 
 
+
+
+def parse_tuple_string(s):
+    return tuple(map(float, s.strip('()').split(',')))
 # List to hold all the received crop box data
 crop_boxes = []
 
 # Define the callback function to handle the incoming OSC message
 def handle_create_crop_box(address, *args):
+
+    # print(f"Urild:{args[0]} position:{args[1]} rotation:{args[2]} scale: {args[3]}")
+    # print(f"Urild:{args[0]} position:{args[1]}")
+
     data = {
         "urlid": args[0],
-        "position": {"x": args[1][0], "y": args[1][1], "z": args[1][2]},
-        "rotation": {"x": args[2][0], "y": args[2][1], "z": args[2][2], "w": args[2][3]},
-        "scale": {"x": args[3][0], "y": args[3][1], "z": args[3][2]}
+        "position": parse_tuple_string(args[1]),
+        "rotation": parse_tuple_string(args[2]),
+        "scale": parse_tuple_string(args[3])
     }
     
     # Add the received data to the crop_boxes list
@@ -177,6 +185,22 @@ def handle_create_crop_box(address, *args):
         json.dump(crop_boxes, json_file, indent=4)
     
     print(f"Received and saved data: {data}")
+          
+    # data = {
+    #     "urlid": args[0],
+    #     "position": {"x": args[1][0], "y": args[1][1], "z": args[1][2]},
+    #     "rotation": {"x": args[2][0], "y": args[2][1], "z": args[2][2], "w": args[2][3]},
+    #     "scale": {"x": args[3][0], "y": args[3][1], "z": args[3][2]}
+    # }
+    
+    # # Add the received data to the crop_boxes list
+    # crop_boxes.append(data)
+    
+    # # Save the accumulated data to a JSON file
+    # with open('crop_boxes_data.json', 'w') as json_file:
+    #     json.dump(crop_boxes, json_file, indent=4)
+    
+    # print(f"Received and saved data: {data}")
 
 # Function to handle OSC messages
 def default_handler(address, *args):
@@ -245,14 +269,6 @@ def default_handler(address, *args):
         jsonFilename="./output/"+args[0]+"/" +args[0]+".json"
         imgPath_obj.mkdir(parents=True, exist_ok=True)
         
-        
-        
-
-        
-        
-        
-        
-    
         
     if address == "/Roomscan":
         print("a new frame")
@@ -901,10 +917,10 @@ def oscinit():
     
     
     
-    osc_server = osc_server.ThreadingOSCUDPServer(('10.0.0.123', 6161), dispatcherosc) #Bibi
+    # osc_server = osc_server.ThreadingOSCUDPServer(('10.0.0.123', 6161), dispatcherosc) #Bibi
     
 
-    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
     # osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
