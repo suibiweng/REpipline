@@ -156,9 +156,6 @@ def convert_coordinates(coordinates_str):
 
 
 
-
-
-
 def parse_tuple_string(s):
     return tuple(map(float, s.strip('()').split(',')))
 # List to hold all the received crop box data
@@ -185,21 +182,7 @@ def handle_create_crop_box(address, *args):
         json.dump(crop_boxes, json_file, indent=4)
     
     print(f"Received and saved data: {data}")
-          
-    # data = {
-    #     "urlid": args[0],
-    #     "position": {"x": args[1][0], "y": args[1][1], "z": args[1][2]},
-    #     "rotation": {"x": args[2][0], "y": args[2][1], "z": args[2][2], "w": args[2][3]},
-    #     "scale": {"x": args[3][0], "y": args[3][1], "z": args[3][2]}
-    # }
-    
-    # # Add the received data to the crop_boxes list
-    # crop_boxes.append(data)
-    
-    # # Save the accumulated data to a JSON file
-    # with open('crop_boxes_data.json', 'w') as json_file:
-    #     json.dump(crop_boxes, json_file, indent=4)
-    
+
     # print(f"Received and saved data: {data}")
 
 # Function to handle OSC messages
@@ -348,7 +331,7 @@ def default_handler(address, *args):
     if address == "/PromtGenerateModel":
         URLID=args[2]
         prompt=args[1]
-        GenratedModl(URLID,prompt)
+        GeneratedModel(URLID,prompt)
 
 
     if address =="/NerfTest":
@@ -374,12 +357,6 @@ def default_handler(address, *args):
             if(BKJsonPath != None):
                 Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
         
-        
-        # if(Bkdone):
-        
-        #     zip_file_with_delay(get_obj_file(BKfolderPath),URLid+"_scaned_background.zip")
-        #     time.sleep(10)
-        #     zip_file_with_delay(get_obj_file(ObjPath),URLid+"_target.zip")
 def save_yaml_file(exp_name, text, append_direction, shape_path, seed, filename):
     """
     Create YAML data similar to the provided structure and save it to a file.
@@ -508,31 +485,61 @@ def re_export_obj(input_obj_file):
     ms.save_current_mesh(input_obj_file)
 
 
-def GenratedModl(URLID,prompt):
+# def GenratedModl(URLID,prompt):
     
-    #     parser.add_argument("--URID", required=True, help="Unique Resource Identifier")
-    #     parser.add_argument("--prompt", required=True, help="Text prompt for guide")
+#     #     parser.add_argument("--URID", required=True, help="Unique Resource Identifier")
+#     #     parser.add_argument("--prompt", required=True, help="Text prompt for guide")
     
-        command = f"python shapeRuntime.py --prompt \"{prompt}\" --URID {URLID}"
-        # Execute the command
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+#         command = f"python shapeRuntime.py --prompt \"{prompt}\" --URID {URLID}"
+#         # Execute the command
+#         result = subprocess.run(command, shell=True, capture_output=True, text=True)
 
-        # Check if the command was executed successfully
-        if result.returncode == 0:
-            print("Command executed successfully.")
-            time.sleep(3)
-            zip_file_with_delay(f"./output/{URLID}/{URLID}_generated.FBX", f"{URLID}_generated.zip", delay=3)
+#         # result = subprocess.Popruen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+#         # Check if the command was executed successfully
+#         if result.returncode == 0:
+#             print("Command executed successfully.")
+#             time.sleep(3)
+#             zip_file_with_delay(f"./output/{URLID}/{URLID}_generated.FBX", f"{URLID}_generated.zip", delay=3)
             
 
-            # Optional: Print stdout
-            if result.stdout:
-                print("Output:", result.stdout)
-        else:
-            print("Command failed with return code", result.returncode)
+#             # Optional: Print stdout
+#             if result.stdout:
+#                 print("Output:", result.stdout)
+#         else:
+#             print("Command failed with return code", result.returncode)
             
-            # Print stderr for error
-            if result.stderr:
-                print("Error:", result.stderr)
+#             # Print stderr for error
+#             if result.stderr:
+#                 print("Error:", result.stderr)
+
+
+def GeneratedModel(URLID, prompt):
+    command = f"python shapeRuntime.py --prompt \"{prompt}\" --URID {URLID}"
+    
+    # Run the command in the background using Popen
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    # Wait for the process to complete and get output
+    stdout, stderr = process.communicate()
+
+    # Check if the command was executed successfully
+    if process.returncode == 0:
+        print("Command executed successfully.")
+        time.sleep(3)
+        zip_file_with_delay(f"./output/{URLID}/{URLID}_generated.FBX", f"{URLID}_generated.zip", delay=3)
+        
+        # Optional: Print stdout
+        if stdout:
+            print("Output:", stdout)
+    else:
+        print("Command failed with return code", process.returncode)
+        
+        # Print stderr for error
+        if stderr:
+            print("Error:", stderr)
+
+
         
 
 
