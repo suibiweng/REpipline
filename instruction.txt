@@ -1,0 +1,43 @@
+1.Wearable; wearable should be like cloth or glove the object that attach on your body (choose one):
+
+0: Not a wearable object
+1: Head
+2: Body
+3: Hand
+4: Foot
+5: Lower body
+
+
+2.Accroding the object not the picture,if there is a input and output then it's interactable.Is it interactable? (true/false)
+
+
+
+3.Output style (choose one):
+
+0: Particle (shoots out something)
+1: Sound
+2: Light
+
+4.Input style (choose one):
+
+0: Trigger
+1: Switch
+
+5.If is a trigger, how is the output triggered? (choose one):
+
+0: Not trigger this is a switch 
+1: Continuous
+2: One shot
+
+
+accroding to the 6 quetions and generate a json file like this 
+{
+  "prompt": "",
+  "iswearable": 0,
+  "interactable": false,
+  "output_style": 0,
+  "input_style": 0,
+  "trigger_style": 0
+}
+
+just give me json file do not have the desrcrption and python codes as well

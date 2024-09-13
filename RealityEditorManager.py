@@ -25,6 +25,7 @@ import sys
 Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
 InstantNGP_MoudlePath = "C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\"
 TexTurePaper_modulePath=""
+open_ai_key=""
     
 
 saveImageName = "test.jpg"
@@ -332,6 +333,7 @@ def default_handler(address, *args):
         URLID=args[2]
         prompt=args[1]
         GeneratedModel(URLID,prompt)
+        call_Interactable_script(prompt, f"{URLID}_interactable.json")
 
 
     if address =="/NerfTest":
@@ -356,6 +358,30 @@ def default_handler(address, *args):
             BKJsonPath=ColmapObj(BKfolderPath)
             if(BKJsonPath != None):
                 Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
+
+
+
+def call_Interactable_script(prompt, output_path):
+    global open_ai_key
+    # Construct the command to call the external script
+    command = [
+        'python', 'send_openai_prompt.py',
+        '--prompt', prompt,
+        '--api_key', open_ai_key,
+        '--output_path', output_path,
+        '--instructions_file', './instruction.txt'
+    ]
+    
+    # Run the command using subprocess.Popen
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    # Communicate with the process to capture stdout and stderr
+    stdout, stderr = process.communicate()
+    
+    # Print the output and errors (if any)
+    print("STDOUT:", stdout)
+    print("STDERR:", stderr)
+
         
 def save_yaml_file(exp_name, text, append_direction, shape_path, seed, filename):
     """
@@ -1057,6 +1083,9 @@ if __name__ == '__main__':
     Inpainting_Anything_ModulePath = config['Inpainting_Anything_ModulePath']
     InstantNGP_MoudlePath = config['InstantNGP_MoudlePath']
     TexTurePaper_modulePath= config['TEXTurePaper_ModulePath']
+    open_ai_key = config['open_ai_key']
+
+
     print("Inpainting Module Path:", Inpainting_Anything_ModulePath)
     print("Instant NGP Module Path:", InstantNGP_MoudlePath)
     print("TexttuerePath:",TexTurePaper_modulePath)
