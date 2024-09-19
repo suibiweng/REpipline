@@ -17,7 +17,7 @@ import datetime
 import sys
 from pythonosc.udp_client import SimpleUDPClient
 from pythonosc.dispatcher import Dispatcher
-from pythonosc.udp_client import SimpleUDPClient
+
 from pythonosc import osc_server
 
 
@@ -27,7 +27,7 @@ import signal
 
 
 VRip='192.168.0.213'
-theProjectPath=""`
+theProjectPath=""
 ckptPath=""
 yamalpath=""
 stage=0

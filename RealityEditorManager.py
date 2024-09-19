@@ -17,39 +17,16 @@ from watchdog.events import FileSystemEventHandler
 import NDIlib as ndi
 import signal
 import keyboard
-
-# os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-# import mediapipe as mp
-
-
-
 import pymeshlab
-
-
 from PIL import Image
 import json
-
-
-
-
-# mp_objectron = mp.solutions.objectron
-# mp_drawing = mp.solutions.drawing_utils
-
-# objectron = mp_objectron.Objectron(static_image_mode=False,
-#                             max_num_objects=5,
-#                             min_detection_confidence=0.5,
-#                             min_tracking_confidence=0.7,
-#                             model_name='Cup')
-
+import sys
 
 Inpainting_Anything_ModulePath ="C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\Inpaint-Anything\\"
 InstantNGP_MoudlePath = "C:\\Users\\someo\\Desktop\\RealityEditor\\PythonProject\\instant-ngp\\"
 TexTurePaper_modulePath=""
+open_ai_key=""
     
-
-
-
-
 
 saveImageName = "test.jpg"
 saveImageSwitch = False
@@ -58,6 +35,12 @@ jsonFilename=""
 serials_data = []
 URLid=""
 picCount =0
+imgPath_obj=""
+
+ndi_frame = None
+ipcam_frame = None
+campoints = None
+isTracking=False
 
 
 
@@ -84,97 +67,48 @@ def capture_frame_and_save(frame, output_filename):
 URL = "http://192.168.0.128"
 
 AWB = True
+            
 
-# Face recognition and opencv setup
+            
+def ipcam_receiver(url):
+    global ipcam_frame
 
-
-def main_loop():
-    global mp_objectron
-    global mp_drawing 
-
-    global objectron
-
-
-    
-    if not ndi.initialize():
-        return 0
-
-    ndi_find = ndi.find_create_v2()
-
-    if ndi_find is None:
-        return 0
-
-    sources = []
-    while not len(sources) > 0:
-        print('Looking for sources ...')
-        ndi.find_wait_for_sources(ndi_find, 1000)
-        sources = ndi.find_get_current_sources(ndi_find)
-       
-
-    ndi_recv_create = ndi.RecvCreateV3()
-    ndi_recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
-    ndi_recv = ndi.recv_create_v3(ndi_recv_create)
-
-
-
-    if ndi_recv is None:
-        print("None")
-        return 0
-
-    ndi.recv_connect(ndi_recv, sources[0])
-    ndi.find_destroy(ndi_find)
-    
-    
-    
-    
     while True:
-        
-        t, v, _, _ = ndi.recv_capture_v2(ndi_recv, 5000)
-
-        if t == ndi.FRAME_TYPE_VIDEO:
-            #print('Video data received (%dx%d).' % (v.xres, v.yres))
-            frame = np.copy(v.data)
-            cv2.imshow('ndi image', frame)
-            ndi.recv_free_video_v2(ndi_recv, v)
-
-
-            # image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # results = objectron.process(image)
-
-            # if results.detected_objects:
-            #     for detected_object in results.detected_objects:
-            #         print(detected_object)
-            #         mp_drawing.draw_landmarks(image, 
+        try:
+            cap = requests.get(url, stream=True, timeout=10)
+            if cap.status_code == 200:
+                bytes = b''
+                for chunk in cap.iter_content(chunk_size=1024):
+                    bytes += chunk
+                    a = bytes.find(b'\xff\xd8')
+                    b = bytes.find(b'\xff\xd9')
+                    if a != -1 and b != -1:
+                        jpg = bytes[a:b+2]
+                        bytes = bytes[b+2:]
+                        ipcam_frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        
+            #             if(isTracking):
+            #                 results = objectron.process(ipcam_frame)
+            #                 if results.detected_objects:
+            #                  for detected_object in results.detected_objects:
+            # #print(detected_object)
+            #                     mp_drawing.draw_landmarks(ipcam_frame, 
             #                           detected_object.landmarks_2d, 
             #                           mp_objectron.BOX_CONNECTIONS)
           
-            #         mp_drawing.draw_axis(image, 
-            #                      detected_object.rotation,
-            #                      detected_object.translation)
+            #                     mp_drawing.draw_axis(ipcam_frame, 
+            #                         detected_object.rotation,
+            #                         detected_object.translation)
+            else:
+                print("Failed to connect to the server, status code:", cap.status_code)
+                time.sleep(5)  # Wait before trying to reconnect
+        except requests.exceptions.RequestException as e:
+            print("Connection error:", e)
+            time.sleep(5)  # Wait before trying to reconnect
+        except Exception as e:
+            print("An unexpected error occurred:", e)
+            time.sleep(5)  # Wait before trying to reconnect
 
-            #cv2.imshow('MediaPipe Objectron_NDI', cv2.flip(image, 1))
-
-
-
-        
-
-        
-            
-            
-            global saveImageSwitch
-            if saveImageSwitch:
-                # print("saving from the main loop")
-                global saveImageName
-                capture_frame_and_save(frame, saveImageName)
-                saveImageSwitch = False
-                
-
-            
-
-            key = cv2.waitKey(1)
-            
-            if key == 27:
-                 break
             
 
 
@@ -222,6 +156,36 @@ def convert_coordinates(coordinates_str):
     return float(x), (float(y))
 
 
+
+def parse_tuple_string(s):
+    return tuple(map(float, s.strip('()').split(',')))
+# List to hold all the received crop box data
+crop_boxes = []
+
+# Define the callback function to handle the incoming OSC message
+def handle_create_crop_box(address, *args):
+
+    # print(f"Urild:{args[0]} position:{args[1]} rotation:{args[2]} scale: {args[3]}")
+    # print(f"Urild:{args[0]} position:{args[1]}")
+
+    data = {
+        "urlid": args[0],
+        "position": parse_tuple_string(args[1]),
+        "rotation": parse_tuple_string(args[2]),
+        "scale": parse_tuple_string(args[3])
+    }
+    
+    # Add the received data to the crop_boxes list
+    crop_boxes.append(data)
+    
+    # Save the accumulated data to a JSON file
+    with open('crop_boxes_data.json', 'w') as json_file:
+        json.dump(crop_boxes, json_file, indent=4)
+    
+    print(f"Received and saved data: {data}")
+
+    # print(f"Received and saved data: {data}")
+
 # Function to handle OSC messages
 def default_handler(address, *args):
     global imgPath
@@ -230,10 +194,26 @@ def default_handler(address, *args):
     global serials_data
     global URLid
     global picCount
+    global imgPath_obj
     
     #Test Message Repeat sending
     print("receive:"+address)
     print(args)
+    
+    
+    if address== "/captureSpatialPicture":
+        urid = args[0]
+        campoints = (int(args[1]), int(args[2]))
+        adjPointDepth = (0,0)
+        adjPointRGB = (0,0)
+        if ndi_frame is not None:
+            # Draw a dot on the NDI frame at the specified campoints
+            # cv2.circle(ndi_frame,(campoints[0]-50,campoints[1]+250), 10, (0, 0, 255), -1)  # Red dot
+            cv2.imwrite(f"{urid}_Depth.png", ndi_frame)
+        if ipcam_frame is not None:
+            # cv2.circle(ipcam_frame, (campoints[0]-50,campoints[1]+150), 10, (0, 0, 255), -1)
+            cv2.imwrite(f"{urid}_RGB.png", ipcam_frame)
+        
     
     
   
@@ -246,14 +226,8 @@ def default_handler(address, *args):
         # Create a Path object
         imgPath_obj = Path(imgPath)
         jsonFilename="./output/"+args[0]+"/" +args[0]+".json"
-
-        # Create the directory
         imgPath_obj.mkdir(parents=True, exist_ok=True)
-        # if not folder_path.exists():
-        #     folder_path.mkdir()
-        #     print(f"Folder '{imgPath}' created successfully.")
-        # else:
-        #     print(f"Folder '{imgPath}' already exists.")
+
 
     # store the info
     # on receiving message, take a photo
@@ -264,23 +238,65 @@ def default_handler(address, *args):
         saveImageName = imgPath+args[0]
         serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
         picCount+=1
-        
-        
-        
-
-        #saveFile.write(saveImageName + "\n")
-        #saveFile.write(args[1])
-        
         print(saveImageName)
         global saveImageSwitch
         saveImageSwitch = True
-        #saveFile.close()
     
+    if address == "/RoomScanStart":
+        
+        print("start to")
+        serials_data = []
+        imgPath ="./output/"+args[0]+"/"  
+        URLid=args[0]
+        # Create a Path object
+        imgPath_obj = Path(imgPath)
+        jsonFilename="./output/"+args[0]+"/" +args[0]+".json"
+        imgPath_obj.mkdir(parents=True, exist_ok=True)
+        
+        
+    if address == "/Roomscan":
+        print("a new frame")
+        print(args[0])
+        saveImageName = imgPath+args[0]
+        #serials_data.append({"Filename": args[0], "Coordinates":  convert_coordinates(args[1])})
+        picCount+=1
+        print(saveImageName)
+        # global saveImageSwitch
+        # saveImageSwitch = True
+        #cv2.imwrite(f"{saveImageName}_Depth.png", ndi_frame)
+        filename = f"{args[0]}.png"
+        full_path = os.path.join(imgPath, filename) 
+        cv2.imwrite(str(full_path), ipcam_frame)
+        #cv2.imwrite(f"{saveImageName}_RGB.png", ipcam_frame)
+   
+   
+   
+   
+    if address == "/RoomscanEnd":
+        #         print("finish recording")
+        # store_serials_data(serials_data, jsonFilename)
+        # testdata
+        # URLid="20240229125610"
+        # picCount=32
+        # serials_data.append({"Filename": "1", "Coordinates":  [282.44,231.3]})
+        testpath = "./output/"+URLid
+        testvideoName=URLid+".mp4"
+        ObjJsonPath=ColmapObj(testpath)
+        
+        time.sleep(3)
+        if(ObjJsonPath != None):
+            objdone=NerfObj (ObjJsonPath,testpath,"target")
+        # ffmpegCall(testpath, testvideoName, 30)       
+        
+        saveImageName="" 
+        jsonFilename=""
+        picCount=0
+        imgPath_obj=""
+
     if address == "/endRecord":
         print("finish recording")
         store_serials_data(serials_data, jsonFilename)
-       # testdata
-      
+        # testdata
         # URLid="20240229125610"
         # picCount=32
         # serials_data.append({"Filename": "1", "Coordinates":  [282.44,231.3]})
@@ -295,6 +311,7 @@ def default_handler(address, *args):
         saveImageName="" 
         jsonFilename=""
         picCount=0
+
     if address =="/InstructModify":
         delete_file_if_exists(f"{args[2]}_Instruction.zip")
         URLid=args[2]
@@ -315,12 +332,12 @@ def default_handler(address, *args):
     if address == "/PromtGenerateModel":
         URLID=args[2]
         prompt=args[1]
-        GenratedModl(URLID,prompt)
+        GeneratedModel(URLID,prompt)
+        call_Interactable_script(prompt, f"{URLID}_interactable.json")
 
 
     if address =="/NerfTest":
         print("TestNerf")
-        
         URLid="20240311012159"
        
         testpath = "./output/"+URLid+"\\"+URLid+"\\"+URLid+"\\original_frames"
@@ -341,14 +358,31 @@ def default_handler(address, *args):
             BKJsonPath=ColmapObj(BKfolderPath)
             if(BKJsonPath != None):
                 Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
+
+
+
+def call_Interactable_script(prompt, output_path):
+    global open_ai_key
+    # Construct the command to call the external script
+    command = [
+        'python', 'send_openai_prompt.py',
+        '--prompt', prompt,
+        '--api_key', open_ai_key,
+        '--output_path', output_path,
+        '--instructions_file', './instruction.txt'
+    ]
+    
+    # Run the command using subprocess.Popen
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    # Communicate with the process to capture stdout and stderr
+    stdout, stderr = process.communicate()
+    
+    # Print the output and errors (if any)
+    print("STDOUT:", stdout)
+    print("STDERR:", stderr)
+
         
-        
-        
-        # if(Bkdone):
-        
-        #     zip_file_with_delay(get_obj_file(BKfolderPath),URLid+"_scaned_background.zip")
-        #     time.sleep(10)
-        #     zip_file_with_delay(get_obj_file(ObjPath),URLid+"_target.zip")
 def save_yaml_file(exp_name, text, append_direction, shape_path, seed, filename):
     """
     Create YAML data similar to the provided structure and save it to a file.
@@ -477,31 +511,61 @@ def re_export_obj(input_obj_file):
     ms.save_current_mesh(input_obj_file)
 
 
-def GenratedModl(URLID,prompt):
+# def GenratedModl(URLID,prompt):
     
-    #     parser.add_argument("--URID", required=True, help="Unique Resource Identifier")
-    #     parser.add_argument("--prompt", required=True, help="Text prompt for guide")
+#     #     parser.add_argument("--URID", required=True, help="Unique Resource Identifier")
+#     #     parser.add_argument("--prompt", required=True, help="Text prompt for guide")
     
-        command = f"python shapeRuntime.py --prompt \"{prompt}\" --URID {URLID}"
-        # Execute the command
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+#         command = f"python shapeRuntime.py --prompt \"{prompt}\" --URID {URLID}"
+#         # Execute the command
+#         result = subprocess.run(command, shell=True, capture_output=True, text=True)
 
-        # Check if the command was executed successfully
-        if result.returncode == 0:
-            print("Command executed successfully.")
-            time.sleep(3)
-            zip_file_with_delay(f"./output/{URLID}/{URLID}_generated.FBX", f"{URLID}_generated.zip", delay=3)
+#         # result = subprocess.Popruen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+#         # Check if the command was executed successfully
+#         if result.returncode == 0:
+#             print("Command executed successfully.")
+#             time.sleep(3)
+#             zip_file_with_delay(f"./output/{URLID}/{URLID}_generated.FBX", f"{URLID}_generated.zip", delay=3)
             
 
-            # Optional: Print stdout
-            if result.stdout:
-                print("Output:", result.stdout)
-        else:
-            print("Command failed with return code", result.returncode)
+#             # Optional: Print stdout
+#             if result.stdout:
+#                 print("Output:", result.stdout)
+#         else:
+#             print("Command failed with return code", result.returncode)
             
-            # Print stderr for error
-            if result.stderr:
-                print("Error:", result.stderr)
+#             # Print stderr for error
+#             if result.stderr:
+#                 print("Error:", result.stderr)
+
+
+def GeneratedModel(URLID, prompt):
+    command = f"python shapeRuntime.py --prompt \"{prompt}\" --URID {URLID}"
+    
+    # Run the command in the background using Popen
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    # Wait for the process to complete and get output
+    stdout, stderr = process.communicate()
+
+    # Check if the command was executed successfully
+    if process.returncode == 0:
+        print("Command executed successfully.")
+        time.sleep(3)
+        zip_file_with_delay(f"./output/{URLID}/{URLID}_generated.FBX", f"{URLID}_generated.zip", delay=3)
+        
+        # Optional: Print stdout
+        if stdout:
+            print("Output:", stdout)
+    else:
+        print("Command failed with return code", process.returncode)
+        
+        # Print stderr for error
+        if stderr:
+            print("Error:", stderr)
+
+
         
 
 
@@ -748,61 +812,6 @@ def run_inpainting(input_folder, output_dir):
         ObjPath=testpath
         NerfObj (colmapjson,ObjPath,"target")
        
-        # testpath = "./output/"+URLid+"\\"+URLid+"\\original_frames"
-        # testpath= os.path.abspath(testpath)
-        
-        # BKfolderPath= "./output/"+URLid+"\\"+"GenerateImages\\Bkonly\\images\\"
-        
-        # BKfolderPath=os.path.abspath(BKfolderPath)
-        # ObjPath=testpath
-
-        
-        # ObjJsonPath=ColmapObj(ObjPath)
-        # if(ObjJsonPath != None):
-        #     NerfObj (ObjJsonPath,ObjPath,"target")
-        # else:
-        #     print("Colmap Error")
-  
-  
-        # BKJsonPath=ColmapObj(BKfolderPath)
-        # if(BKJsonPath != None):
-        #     Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
-        # else:
-        #     print("BK Colmap Error")
-  
-        
-       
-           
-
-    
-     
-        
-  
-        
-        
-        # BKfolderPath=input_folder+"\\"+"GenerateImages\\images\\"
-        # ObjPath=input_folder
-        
-        # ObjJsonPath=ColmapObj(ObjPath)
-           
-        # if(ObjJsonPath != None):
-        #     objdone=NerfObj (ObjJsonPath,ObjPath,"target")
-        # else:
-        #     print("Error in colmap")
-        #     return False
-        # if(objdone):
-        #     BKJsonPath=ColmapObj(BKfolderPath)
-        #     if(BKJsonPath != None):
-        #         Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
-        
-        
-
-        
-
-            
-        
-
-        
         # Optional: Print stdout
         if result.stdout:
             print("Output:", result.stdout)
@@ -827,11 +836,8 @@ def ColmapObj (input_folder):
     if result.returncode == 0:
         print("Colmap executed successfully.")
         run_inpainting(input_folder,input_folder)
-        
-        
         return jsonFilepath
         # Optional: Print stdout
-      
         
     else:
         print("Command failed with return code", result.returncode)
@@ -865,9 +871,6 @@ def NerfObj (input_json,output_folder,Objtype):
         # Print stderr for error
         return False
     
-    
-    
-
 def zip_file_with_delay(file_path, output_zip, delay=3):
     time.sleep(delay)
 
@@ -909,49 +912,6 @@ def zip_folder_with_delay(folder_path, output_zip, delay=3):
         
 
 
-
-def upload_file_to_server( local_file_path,server_ip = '34.106.250.143', server_port=22):
-   
-    
-    try:
-        # 創建SSH客戶端對象
-        ssh = paramiko.SSHClient()
-
-        # 自動添加主機密鑰
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        # 使用SSH金鑰進行連接
-        ssh.connect(server_ip, port=server_port, username='suibidata2023', key_filename='suibikey.ppk')
-
-        # 創建SFTP客戶端對象
-        sftp = ssh.open_sftp()
-
-        # 指定本地文件和遠程文件的路徑
-        fileName = local_file_path
-        remote_file_path = '/var/www/html/upload/'
-        upload_file = remote_file_path + os.path.basename(fileName)
-
-        # 上傳文件
-        sftp.put(fileName, upload_file)
-
-        # 關閉SFTP連接
-        sftp.close()
-
-        uploaded_url = f'http://{server_ip}/upload/{os.path.basename(fileName)}'  # Construct the uploaded URL
-        print(f' {local_file_path} is uploaded {server_ip} at {remote_file_path}。')
-        print(f'Download: {uploaded_url}')
-        #send_osc_message(VRip, 1337, "/GenrateModel",[modelId,uploaded_url])
-        
-        return uploaded_url  # Return the uploaded URL as a string
-    except Exception as e:
-        print(f'Erro：{str(e)}')
-        return None  # Return None in case of an error
-    finally:
-        # 關閉SSH連接
-        ssh.close()
-        
-
-
 def get_obj_file(directory):
     """
     Returns the absolute path to the first file ending with '.obj' in the specified directory.
@@ -988,28 +948,133 @@ def oscinit():
     global osc_server
     dispatcherosc = Dispatcher()
     
-    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+    
+    
+    # osc_server = osc_server.ThreadingOSCUDPServer(('10.0.0.123', 6161), dispatcherosc) #Bibi
+    
+
+    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
-    # osc_server = osc_server.ThreadingOSCUDPServer(('192.168.23.1', 6161), dispatcherosc) 
-    osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
+    # osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
     OSCserver_thread.start()
-    
-    
-    
-    #  OSCserver = osc_server.ForkingOSCUDPServer((OSCaddress, OSCport), dispatcher)
-    # OSCserver_thread = threading.Thread(target=OSCserver.serve_forever)
-    # OSCserver_thread.start()
     print("Serving on {}".format(osc_server.server_address))
    # osc_server.serve_forever()
 
     dispatcherosc.map("/filter", print)
+    dispatcherosc.map("/CreateCropBox", handle_create_crop_box)
     dispatcherosc.set_default_handler(default_handler)
     
 
 def exit_program():
     print("Exiting the program.")
-    os.kill(os.getpid(), signal.SIGTERM)     
+    os.kill(os.getpid(), signal.SIGTERM)
+
+# Function to receive and display the NDI stream
+def ndi_receiver():
+    global ndi_frame
+
+    if not ndi.initialize():
+        print("Cannot initialize NDI")
+        return 0
+
+    ndi_find = ndi.find_create_v2()
+
+    if ndi_find is None:
+        print("Cannot create NDI find")
+        return 0
+
+    sources = []
+    while not len(sources) > 0:
+        print('Looking for NDI sources...')
+        ndi.find_wait_for_sources(ndi_find, 1000)
+        sources = ndi.find_get_current_sources(ndi_find)
+
+    print("NDI sources found:", sources)
+    ndi_recv_create = ndi.RecvCreateV3()
+    ndi_recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
+
+    ndi_recv = ndi.recv_create_v3(ndi_recv_create)
+
+    if ndi_recv is None:
+        print("Cannot create NDI receiver")
+        return 0
+
+    ndi.recv_connect(ndi_recv, sources[0])
+
+    ndi.find_destroy(ndi_find)
+
+    while True:
+        t, v, _, _ = ndi.recv_capture_v2(ndi_recv, 5000)
+
+        if t == ndi.FRAME_TYPE_VIDEO:
+            frame = np.copy(v.data)
+            ndi.recv_free_video_v2(ndi_recv, v)
+            # Convert 4-channel BGRX_BGRA to 3-channel BGR
+            ndi_frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+
+        if cv2.waitKey(1) & 0xff == 27:
+            break
+
+    ndi.recv_destroy(ndi_recv)
+    ndi.destroy()
+
+
+
+
+def resize_frames_to_same_height(frame1, frame2):
+    height1, width1 = frame1.shape[:2]
+    height2, width2 = frame2.shape[:2]
+
+    if height1 > height2:
+        new_width2 = int(width2 * height1 / height2)
+        frame2 = cv2.resize(frame2, (new_width2, height1))
+    else:
+        new_width1 = int(width1 * height2 / height1)
+        frame1 = cv2.resize(frame1, (new_width1, height2))
+
+    return frame1, frame2
+
+
+
+def main():
+    global ndi_frame, ipcam_frame
+
+    # URL of the IP camera feed
+    url = "http://192.168.0.134:8001/video_feed"
+
+    # Start the NDI receiver thread
+    ndi_thread = threading.Thread(target=ndi_receiver)
+    ndi_thread.daemon = True
+    ndi_thread.start()
+
+    # Start the IP camera receiver thread
+    ipcam_thread = threading.Thread(target=ipcam_receiver, args=(url,))
+    ipcam_thread.daemon = True
+    ipcam_thread.start()
+
+    # # Start the OSC server thread
+    # osc_thread = threading.Thread(target=start_osc_server)
+    # osc_thread.daemon = True
+    # osc_thread.start()
+
+    while True:
+        if ndi_frame is not None and ipcam_frame is not None:
+            ndi_frame, ipcam_frame = resize_frames_to_same_height(ndi_frame, ipcam_frame)
+            combined_frame = np.hstack((ndi_frame, ipcam_frame))
+            cv2.imshow('Combined Stream', combined_frame)
+        elif ndi_frame is not None:
+            cv2.imshow('NDI Stream', ndi_frame)
+        elif ipcam_frame is not None:
+            cv2.imshow('IP Camera Stream', ipcam_frame)
+
+        if cv2.waitKey(1) & 0xff == 27:
+            break
+
+    cv2.destroyAllWindows()
+
+
+
 
 if __name__ == '__main__':
  
@@ -1018,9 +1083,14 @@ if __name__ == '__main__':
     Inpainting_Anything_ModulePath = config['Inpainting_Anything_ModulePath']
     InstantNGP_MoudlePath = config['InstantNGP_MoudlePath']
     TexTurePaper_modulePath= config['TEXTurePaper_ModulePath']
+    open_ai_key = config['open_ai_key']
+
+
     print("Inpainting Module Path:", Inpainting_Anything_ModulePath)
     print("Instant NGP Module Path:", InstantNGP_MoudlePath)
     print("TexttuerePath:",TexTurePaper_modulePath)
+
+    process = subprocess.Popen(["RunServer.bat"], shell=True)
     
     
     
@@ -1029,8 +1099,13 @@ if __name__ == '__main__':
     print("press ESC to exit")
 
     
-    # main_thread = threading.Thread(target=main_loop)
+    # main_thread = threading.Thread(target=main)
     # main_thread.start()
+
+    #main()
+
+ 
+
     
     try:
          
