@@ -11,13 +11,25 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         # Decode the JSON data
         json_data = post_data.decode('utf-8')
         
+        try:
+            data = json.loads(json_data)
+            # Extract the scene name, replace any characters that are invalid for file names
+            scene_name = data.get("sceneName", "default_scene").replace(":", "_").replace(" ", "_")
+            print(f"Received scene name: {scene_name}")
+        except json.JSONDecodeError as e:
+            print("Invalid JSON data received:", e)
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b'Invalid JSON data.')
+            return
+
         # Create the "SavedScene" folder if it doesn't exist
         save_directory = "SavedScene"
         if not os.path.exists(save_directory):
             os.makedirs(save_directory)
         
         # Path to save the JSON file in the "SavedScene" folder
-        save_path = os.path.join(save_directory, 'uploaded.json')
+        save_path = os.path.join(save_directory, f'{scene_name}.json')
         
         # Optionally, you can parse the JSON data
         try:
