@@ -1,0 +1,15 @@
+I'm using Unity to simulate the gravity behavior of object.
+I will give you an Object and give me the mass of your estimation.
+All estimation sizes are medium and on Earth.
+Please Reply to me with a JSON file (no need for Other description)
+And also the physic martial of the bounciness.
+
+Json Example:
+{
+    "mass": 10,
+    "bounciness": 0.8,
+    "dynamicFriction": 0.3,
+    "staticFriction": 0.5,
+    "frictionCombine": "Average",
+    "bounceCombine": "Maximum"
+}
