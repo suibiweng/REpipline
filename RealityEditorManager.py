@@ -333,7 +333,13 @@ def default_handler(address, *args):
         URLID=args[2]
         prompt=args[1]
         GeneratedModel(URLID,prompt)
-        call_Interactable_script(prompt, f"{URLID}_interactable.json")
+        call_Interactable_script(prompt, f"{URLID}_interactable.json","interactableObject")
+        call_Interactable_script(prompt, f"{URLID}_physicsProperties.json","PhysicClassRoom")
+
+
+
+    # if address == "/SetInteractable":
+    #     call_Interactable_script(prompt, f"{URLID}_interactable.json")
 
 
     if address =="/NerfTest":
@@ -361,7 +367,7 @@ def default_handler(address, *args):
 
 
 
-def call_Interactable_script(prompt, output_path):
+def call_Interactable_script(prompt, output_path,instruction):
     global open_ai_key
     # Construct the command to call the external script
     command = [
@@ -369,7 +375,7 @@ def call_Interactable_script(prompt, output_path):
         '--prompt', prompt,
         '--api_key', open_ai_key,
         '--output_path', output_path,
-        '--instructions_file', './instruction.txt'
+        '--instructions_file', f'./PromptInstructions/{instruction}.txt'
     ]
     
     # Run the command using subprocess.Popen
@@ -1089,7 +1095,7 @@ if __name__ == '__main__':
     print("Inpainting Module Path:", Inpainting_Anything_ModulePath)
     print("Instant NGP Module Path:", InstantNGP_MoudlePath)
     print("TexttuerePath:",TexTurePaper_modulePath)
-
+    
     process = subprocess.Popen(["RunServer.bat"], shell=True)
     
     
