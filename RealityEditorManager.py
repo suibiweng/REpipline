@@ -472,11 +472,6 @@ def RunTheTRXURE (YamalPath):
         
     else:
         print("Command failed with return code", result.returncode)
-    
-
-
-
-
 
         #zip_files_with_delay
 
@@ -764,9 +759,6 @@ def run_tracking(video_path, coordinates, output_dir):
     #     "--coordinates", *coordinates,  # Unpack coordinates into separate arguments
     #     "--output_dir",current_folder_path+ str(output_dir)
     # ]
-    
-
-
     # Execute the command
     result = subprocess.run(f"python {Inpainting_Anything_ModulePath}TracktheTarget.py --video_path  {output_dir}\\{str(video_path)} --coordinates {int(coordinates[0])} {int(coordinates[1])} --output_dir {output_dir} --pathPTH {Inpainting_Anything_ModulePath}")
 
@@ -959,7 +951,7 @@ def oscinit():
     # osc_server = osc_server.ThreadingOSCUDPServer(('10.0.0.123', 6161), dispatcherosc) #Bibi
     
 
-    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
+    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.1.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
     # osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
@@ -1025,9 +1017,6 @@ def ndi_receiver():
     ndi.recv_destroy(ndi_recv)
     ndi.destroy()
 
-
-
-
 def resize_frames_to_same_height(frame1, frame2):
     height1, width1 = frame1.shape[:2]
     height2, width2 = frame2.shape[:2]
@@ -1059,10 +1048,6 @@ def main():
     ipcam_thread.daemon = True
     ipcam_thread.start()
 
-    # # Start the OSC server thread
-    # osc_thread = threading.Thread(target=start_osc_server)
-    # osc_thread.daemon = True
-    # osc_thread.start()
 
     while True:
         if ndi_frame is not None and ipcam_frame is not None:
@@ -1083,38 +1068,22 @@ def main():
 
 
 if __name__ == '__main__':
- 
     config_path = './config.json'  # Update this path to where you save your config.json
     config = load_config(config_path)
     Inpainting_Anything_ModulePath = config['Inpainting_Anything_ModulePath']
     InstantNGP_MoudlePath = config['InstantNGP_MoudlePath']
     TexTurePaper_modulePath= config['TEXTurePaper_ModulePath']
     open_ai_key = config['open_ai_key']
-
-
     print("Inpainting Module Path:", Inpainting_Anything_ModulePath)
     print("Instant NGP Module Path:", InstantNGP_MoudlePath)
     print("TexttuerePath:",TexTurePaper_modulePath)
-    
     process = subprocess.Popen(["RunServer.bat"], shell=True)
-    
-    
-    
-    
     keyboard.add_hotkey('esc', exit_program)
     print("press ESC to exit")
-
-    
     # main_thread = threading.Thread(target=main)
     # main_thread.start()
-
     #main()
-
- 
-
-    
-    try:
-         
+    try:  
         oscinit()      
                 
     except KeyboardInterrupt:
