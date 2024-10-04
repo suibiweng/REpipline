@@ -1,0 +1,3 @@
+I will provide a JSON file with a set of room objects and their coordinates. 
+I want you to create a sequence (in an array) that determines if each object is flammable.
+Just response a JSON file only 
