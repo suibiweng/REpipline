@@ -335,6 +335,7 @@ def default_handler(address, *args):
         GeneratedModel(URLID,prompt)
         call_Interactable_script(prompt, f"{URLID}_interactable.json","InteractableObject")
         call_Interactable_script(prompt, f"{URLID}_physicsProperties.json","PhysicClassRoom")
+        call_generate_sound_script(prompt,f"{URLID}_sfx.wav")
 
 
 
@@ -364,6 +365,29 @@ def default_handler(address, *args):
             BKJsonPath=ColmapObj(BKfolderPath)
             if(BKJsonPath != None):
                 Bkdone=NerfObj (BKJsonPath,BKfolderPath,"background")
+
+
+
+
+
+def call_generate_sound_script(text_input, filename):
+    # Define the command to call the Python script
+    command = [
+        'python', 'sfxGenerater.py',  # Replace 'your_script.py' with the actual script filename
+        text_input,
+        filename
+    ]
+
+    try:
+        # Call the subprocess and wait for it to complete
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        print(f"Subprocess finished successfully: {result.stdout}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error during subprocess execution: {e.stderr}")
+
+# Example usage:
+# call_generate_sound_script("Hello, world!", "output.wav")
+
 
 
 
