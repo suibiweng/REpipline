@@ -333,7 +333,7 @@ def default_handler(address, *args):
         URLID=args[2]
         prompt=args[1]
         GeneratedModel(URLID,prompt)
-        call_Interactable_script(prompt, f"{URLID}_interactable.json","interactableObject")
+        call_Interactable_script(prompt, f"{URLID}_interactable.json","InteractableObject")
         call_Interactable_script(prompt, f"{URLID}_physicsProperties.json","PhysicClassRoom")
 
 

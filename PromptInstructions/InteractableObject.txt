@@ -1,3 +1,5 @@
+That is the object,Accroding to this object check the following qustions: 
+
 1.Wearable; wearable should be like cloth or glove the object that attach on your body (choose one):
 
 0: Not a wearable object

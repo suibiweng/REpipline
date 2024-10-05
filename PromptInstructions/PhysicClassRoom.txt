@@ -1,5 +1,6 @@
+That is the object I gave.
 I'm using Unity to simulate the gravity behavior of object.
-I will give you an Object and give me the mass of your estimation.
+give me the mass of your estimation.
 All estimation sizes are medium and on Earth.
 Please Reply to me with a JSON file (no need for Other description)
 And also the physic martial of the bounciness.
