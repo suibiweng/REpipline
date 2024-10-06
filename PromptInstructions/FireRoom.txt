@@ -1,3 +1,6 @@
-I will provide a JSON file with a set of room objects and their coordinates. 
-I want you to create a sequence (in an array) that determines if each object is flammable.
-Just response a JSON file only 
+This is a JSON file with a set of room objects and their coordinates. 
+I want you to create a sequence (in an array) that determines if each object is flammable. 
+Plz using only the URLID to create the sequence array.
+Remove the objects you think is not flammable.
+Just response a JSON file  only plz dont give me extra explainations.
+
