@@ -3,4 +3,17 @@ I want you to create a sequence (in an array) that determines if each object is 
 Plz using only the URLID to create the sequence array.
 Remove the objects you think is not flammable.
 Just response a JSON file  only plz dont give me extra explainations.
+example:
+{
+    "flammableObjects": [
+        "20241006180112",
+        "20241006180113",
+        "20241006180114",
+        "20241006180115",
+        "20241006180116",
+        "20241006180117",
+        "20241006180120"
+    ]
+}
+
 

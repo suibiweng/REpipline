@@ -1101,7 +1101,7 @@ if __name__ == '__main__':
     print("Inpainting Module Path:", Inpainting_Anything_ModulePath)
     print("Instant NGP Module Path:", InstantNGP_MoudlePath)
     print("TexttuerePath:",TexTurePaper_modulePath)
-    process = subprocess.Popen(["RunServer.bat"], shell=True)
+    process = subprocess.Popen(["RunServer.bat","8000"], shell=True)
     keyboard.add_hotkey('esc', exit_program)
     print("press ESC to exit")
     # main_thread = threading.Thread(target=main)

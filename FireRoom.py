@@ -87,7 +87,7 @@ def start_osc_server():
     disp.map("/PutOutFire", osc_PutoutFire_handler)
 
     # OSC server listening on port 5005
-    server = osc_server.ThreadingOSCUDPServer(("192.168.1.139", 5005), disp)
+    server = osc_server.ThreadingOSCUDPServer(("10.0.0.123", 5005), disp)
     print("OSC Server is running on port 5005...")
     server.serve_forever()
 
@@ -118,7 +118,7 @@ def call_Interactable_script(prompt, output_path,instruction):
 
 # Function to start Flask server
 def start_flask_server():
-    app.run(host='192.168.1.139', port=5000)
+    app.run(host='10.0.0.123', port=5000)
 
 def load_config(config_file):
     with open(config_file, 'r') as file:
@@ -134,6 +134,7 @@ if __name__ == '__main__':
     # InstantNGP_MoudlePath = config['InstantNGP_MoudlePath']
     # TexTurePaper_modulePath= config['TEXTurePaper_ModulePath']
     open_ai_key = config['open_ai_key']
+    process = subprocess.Popen(["RunServer.bat","12000"], shell=True)
 
     # Start OSC server in a separate thread
     osc_thread = threading.Thread(target=start_osc_server)
