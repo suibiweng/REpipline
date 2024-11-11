@@ -336,6 +336,17 @@ def default_handler(address, *args):
         call_Interactable_script(prompt, f"{URLID}_interactable.json","InteractableObject")
         call_Interactable_script(prompt, f"{URLID}_physicsProperties.json","PhysicClassRoom")
         call_generate_sound_script(prompt,f"{URLID}_sfx.wav")
+        
+    if address == "/PromtGenerateModelonly":
+        URLID=args[2]
+        prompt=args[1]
+        GeneratedModel(URLID,prompt)
+    
+    
+    if address == "/GenerateStory":
+        call_Interactable_script(prompt, f"{URLID}_StorySet.json","Story")
+        
+        
 
 
 
