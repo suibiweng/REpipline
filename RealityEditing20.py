@@ -1,6 +1,10 @@
 from flask import Flask, request, jsonify
 from PIL import Image, ImageDraw
 import os
+import rembg
+import subprocess
+import json
+
 
 app = Flask(__name__)
 
@@ -21,6 +25,7 @@ def upload_image():
     x_offset = int(request.form.get('xOffset', '0'))
     object_position = request.form.get('objectPosition', '(0,0)')
     debug_draw = request.form.get('debugDraw', 'false').lower() == 'true'
+    file_type = request.form.get('type', 'default')  # Retrieve the new 'type' field
 
     # Parse the objectPosition into x, y coordinates
     try:
@@ -36,6 +41,8 @@ def upload_image():
     # Save the uploaded file
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
+    
+
 
     # Perform the flips, x-offset shift, and debug drawing
     try:
@@ -70,6 +77,10 @@ def upload_image():
 
         # Save the modified image back to the same file path
         image.save(file_path)
+   
+        
+        
+        
 
     except Exception as e:
         print(f"Failed to process image: {e}")
@@ -80,14 +91,58 @@ def upload_image():
         "message": "File uploaded and processed successfully",
         "file_path": file_path,
         "prompt": prompt,
+        "type": file_type,  # Include the type field in the response
         "flipY": flip_y,
         "xOffset": x_offset,
         "objectPosition": (object_x, object_y),  # Return the modified coordinates
         "debugDraw": debug_draw
     }), 200
+    
+    
+    
+    
+def execute_sam_rembg(point_data, input_file, output_file):
+    """
+    Executes the rembg command with SAM model and given parameters.
+
+    Args:
+        point_data (list): A list of [x, y] coordinates for the SAM prompt.
+        input_file (str): The path to the input image file.
+        output_file (str): The path to the output image file.
+
+    Returns:
+        subprocess.CompletedProcess: The result of the subprocess call.
+    """
+    # Convert point_data into the required JSON structure
+    sam_prompt = [{"type": "point", "data": point_data, "label": 1}]
+    sam_prompt_json = json.dumps({"sam_prompt": sam_prompt})
+
+    # Build the command
+    command = [
+        "rembg", "i", 
+        "-m", "sam",
+        "-x", sam_prompt_json,
+        input_file,
+        output_file
+    ]
+
+    # Execute the subprocess
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        print("Command executed successfully:")
+        print(result.stdout)
+        return result
+    except subprocess.CalledProcessError as e:
+        print("Error executing command:")
+        print(e.stderr)
+        return e
+    
+    
+    
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
 
 
 
