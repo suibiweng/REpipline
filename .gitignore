@@ -18,3 +18,4 @@ textures
 uploads
 *.json
 *.wav
+*.pth

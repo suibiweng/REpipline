@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from PIL import Image, ImageDraw
 import os
 import rembg
+import cv2
 import subprocess
 import json
 
@@ -11,6 +12,7 @@ app = Flask(__name__)
 # Directories for uploads and output
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -26,6 +28,7 @@ def upload_image():
     object_position = request.form.get('objectPosition', '(0,0)')
     debug_draw = request.form.get('debugDraw', 'false').lower() == 'true'
     file_type = request.form.get('type', 'default')  # Retrieve the new 'type' field
+    urlid = request.form.get('URLID', 'default') 
 
     # Parse the objectPosition into x, y coordinates
     try:
@@ -48,11 +51,14 @@ def upload_image():
     try:
         image = Image.open(file_path).convert("RGBA")
         width, height = image.size  # Get image dimensions
+        object_x = width - object_x
+        if file_type == "RGB":
+            object_x+=30
 
         # Flip image and adjust object_x for left-to-right flip
         if flip_y:
             # Adjust object_x for horizontal flip
-            object_x = width - object_x
+            
             # Flip the image horizontally and vertically
             image = image.transpose(Image.FLIP_LEFT_RIGHT)
             image = image.transpose(Image.FLIP_TOP_BOTTOM)
@@ -77,14 +83,22 @@ def upload_image():
 
         # Save the modified image back to the same file path
         image.save(file_path)
+    
    
-        
         
         
 
     except Exception as e:
         print(f"Failed to process image: {e}")
         return jsonify({"error": "Image processing failed"}), 500
+
+
+
+    if file_type == "RGB":
+        object_position = (object_x,object_y)
+        ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
+        call_removebg_subprocess( file_path, ProccedFile, object_position)
+
 
     # Return the response including all received parameters for reference
     return jsonify({
@@ -97,48 +111,49 @@ def upload_image():
         "objectPosition": (object_x, object_y),  # Return the modified coordinates
         "debugDraw": debug_draw
     }), 200
+
     
-    
-    
-    
-def execute_sam_rembg(point_data, input_file, output_file):
+
+def call_removebg_subprocess( input_file, output_file, point_data):
     """
-    Executes the rembg command with SAM model and given parameters.
+    Calls the removebg script as a subprocess.
 
-    Args:
-        point_data (list): A list of [x, y] coordinates for the SAM prompt.
-        input_file (str): The path to the input image file.
-        output_file (str): The path to the output image file.
-
-    Returns:
-        subprocess.CompletedProcess: The result of the subprocess call.
+    Parameters:
+        script_path (str): Path to the `removebg_sam.py` script.
+        input_file (str): Path to the input image file.
+        output_file (str): Path to save the output image.
+        point_data (list): List of two integers representing the point data (e.g., [150, 300]).
+        checkpoint_path (str): Path to the SAM model checkpoint.
     """
-    # Convert point_data into the required JSON structure
-    sam_prompt = [{"type": "point", "data": point_data, "label": 1}]
-    sam_prompt_json = json.dumps({"sam_prompt": sam_prompt})
-
-    # Build the command
-    command = [
-        "rembg", "i", 
-        "-m", "sam",
-        "-x", sam_prompt_json,
-        input_file,
-        output_file
-    ]
-
-    # Execute the subprocess
     try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        print("Command executed successfully:")
-        print(result.stdout)
-        return result
-    except subprocess.CalledProcessError as e:
-        print("Error executing command:")
-        print(e.stderr)
-        return e
-    
-    
-    
+        # Convert point_data list to a comma-separated string
+        point_data_str = ",".join(map(str, point_data))
+
+        # Call the script as a subprocess
+        result = subprocess.run(
+            [
+                "python", f'removebg_sam.py',
+                "--input_file", input_file,
+                "--output_file", output_file,
+                "--point_data", point_data_str,
+                "--checkpoint_path","sam_vit_h_4b8939.pth"
+            ],
+            capture_output=True,
+            text=True
+        )
+
+        # Handle subprocess results
+        if result.returncode == 0:
+            print("Subprocess completed successfully!")
+            print(result.stdout)
+        else:
+            print("Subprocess failed!")
+            print(result.stderr)
+
+    except Exception as e:
+        print(f"Error calling subprocess: {e}")
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
