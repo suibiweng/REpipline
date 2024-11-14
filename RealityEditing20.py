@@ -112,9 +112,81 @@ def upload_image():
         "debugDraw": debug_draw
     }), 200
 
-    
 
-def call_removebg_subprocess( input_file, output_file, point_data):
+
+def call_Fast3D(input_file,output_dir,zipfile_name):
+    # Command and arguments
+    command = "python"
+    script = "Fast3D.py"
+    # input_file = "demo_files/examples/chair1.png"
+    # output_dir = "output/"
+    # zipfile_name = "output.zip"
+
+    # Construct the command as a list
+    cmd = [command, script, input_file, output_dir, zipfile_name]
+
+    try:
+        # Run the command
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print("Subprocess executed successfully!")
+        print("Output:")
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print("Error while executing the subprocess.")
+        print(f"Return Code: {e.returncode}")
+        print(f"Output: {e.output}")
+        print(f"Error: {e.stderr}")
+        
+        
+        
+def call_SDimg(server_url, output_file_name, mode, prompt, input_image=None, mask_image=None, 
+               seed=1, steps=20, width=512, height=512, cfg_scale=7.0, denoising_strength=0.5):
+    """
+    Calls the SDimg.py script as a subprocess with the specified arguments.
+    
+    Arguments:
+    - server_url: URL of the server (e.g., http://127.0.0.1:7862).
+    - output_file_name: Base name for the output files.
+    - mode: 'txt2img' or 'img2img' to select the API.
+    - prompt: Text prompt for the API.
+    - input_image: Path to the input image (required for img2img mode).
+    - mask_image: Path to the mask image (optional for img2img mode).
+    - seed: Seed for the image generation.
+    - steps: Number of steps for generation.
+    - width: Width of the generated image.
+    - height: Height of the generated image.
+    - cfg_scale: CFG scale for image generation.
+    - denoising_strength: Denoising strength (for img2img mode).
+    """
+    command = [
+        "python", "SDimg.py", 
+        "--server_url", server_url,
+        "--output_file_name", output_file_name,
+        "--mode", mode,
+        "--prompt", prompt,
+        "--seed", str(seed),
+        "--steps", str(steps),
+        "--width", str(width),
+        "--height", str(height),
+        "--cfg_scale", str(cfg_scale)
+    ]
+    
+    if mode == "img2img":
+        if not input_image:
+            raise ValueError("input_image is required for img2img mode.")
+        command.extend(["--input_image", input_image])
+        if mask_image:
+            command.extend(["--mask_image", mask_image])
+        command.extend(["--denoising_strength", str(denoising_strength)])
+    
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error while calling SDimg.py: {e}")
+    except FileNotFoundError:
+        print("Make sure SDimg.py exists and is accessible in the current directory.")
+
+def call_removebg_subprocess( input_file, output_file, point_data,urlid):
     """
     Calls the removebg script as a subprocess.
 
@@ -145,6 +217,7 @@ def call_removebg_subprocess( input_file, output_file, point_data):
         # Handle subprocess results
         if result.returncode == 0:
             print("Subprocess completed successfully!")
+            call_Fast3D(output_file,"./output",urlid)
             print(result.stdout)
         else:
             print("Subprocess failed!")

@@ -78,7 +78,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run a Python script and process its output.")
     parser.add_argument("input_file", type=str, help="Path to the input file.")
     parser.add_argument("output_dir", type=str, help="Path to the output directory.")
-    parser.add_argument("zipfile_name", type=str, help="Name of the output zip file (with .zip extension).")
+    parser.add_argument("urlid", type=str, help="Name of the output zip file (with .zip extension).")
     
     args = parser.parse_args()
 
@@ -101,4 +101,4 @@ if __name__ == "__main__":
     convert_glb_to_fbx(glb_path, fbx_path)
     
     # Step 4: Create a zip file with the converted .fbx in the same directory as this script
-    create_zip_file([fbx_path], args.zipfile_name)
+    create_zip_file([fbx_path], args.urlid+"_reconstruct.zip.zip")
