@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from pymeshlab import MeshSet
 import json
+import aspose.threed as a3d
 
 Fast3DPath=""
 
@@ -50,6 +51,42 @@ def convert_glb_to_fbx(glb_path, fbx_path):
     except Exception as e:
         print(f"Error converting {glb_path} to {fbx_path}: {e}")
 
+
+def convert_glb_to_obj_with_textures(glb_path, obj_path):
+    """
+    Convert a .glb file to .obj with textures using Aspose.3D Python API.
+
+    Args:
+        glb_path (str): Path to the input .glb file.
+        obj_path (str): Path to save the output .obj file.
+
+    Returns:
+        bool: True if conversion is successful, False otherwise.
+    """
+    if not os.path.exists(glb_path):
+        print(f"Error: The input file {glb_path} does not exist.")
+        return False
+
+    try:
+        # Load the GLB file
+        scene = a3d.Scene.from_file(glb_path)
+
+        # Define OBJ save options
+        save_options = a3d.ObjSaveOptions()
+        save_options.enable_materials = True  # Ensure materials are exported
+        save_options.export_textures = True  # Export textures alongside the .obj file
+        
+        # Get the output directory from the obj_path
+        output_dir = os.path.dirname(obj_path)
+        
+        # Save the .obj file along with its textures and material
+        scene.save(obj_path, save_options)
+        print(f"Successfully converted {glb_path} to {obj_path} with textures.")
+        return True
+    except Exception as e:
+        print(f"Error during conversion of {glb_path} to {obj_path} with textures: {e}")
+        return False
+
 def create_zip_file(file_paths, zip_file_name):
     """Create a zip file containing the specified files in the same folder as the script."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -75,11 +112,10 @@ if __name__ == "__main__":
 
 
     # Argument parser setup
-    parser = argparse.ArgumentParser(description="Run a Python script and process its output.")
-    parser.add_argument("input_file", type=str, help="Path to the input file.")
-    parser.add_argument("output_dir", type=str, help="Path to the output directory.")
-    parser.add_argument("urlid", type=str, help="Name of the output zip file (with .zip extension).")
-    
+    parser = argparse.ArgumentParser(description="Process 3D data.")
+    parser.add_argument("--input_file", type=str, required=True, help="Path to input file")
+    parser.add_argument("--output_dir", type=str, required=True, help="Path to output directory")
+    parser.add_argument("--urlid", type=str, required=True, help="Unique URL ID")
     args = parser.parse_args()
 
 
@@ -90,15 +126,15 @@ if __name__ == "__main__":
     run_subprocess(args.input_file, args.output_dir)
     
     # Step 2: Locate the generated mesh.glb
-    glb_path = os.path.join(args.output_dir, "mesh.glb")
+    glb_path = os.path.join(args.output_dir+'/0/', "mesh.glb")
     
     if not is_recently_created(glb_path):
         print(f"Error: mesh.glb not found or not recently created in {args.output_dir}")
         exit(1)
     
     # Step 3: Convert mesh.glb to .fbx
-    fbx_path = os.path.join(args.output_dir, "mesh.fbx")
-    convert_glb_to_fbx(glb_path, fbx_path)
+    # obj_path = os.path.join(args.output_dir, "mesh.obj")
+    # convert_glb_to_obj_with_textures(glb_path, obj_path)
     
     # Step 4: Create a zip file with the converted .fbx in the same directory as this script
-    create_zip_file([fbx_path], args.urlid+"_reconstruct.zip.zip")
+    create_zip_file([glb_path], args.urlid+"_reconstruct.zip")

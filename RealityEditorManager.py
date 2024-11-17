@@ -1067,6 +1067,10 @@ def resize_frames_to_same_height(frame1, frame2):
 
 
 
+    
+
+
+
 def main():
     global ndi_frame, ipcam_frame
 

@@ -5,8 +5,12 @@ import rembg
 import cv2
 import subprocess
 import json
+import NDIlib as ndi
+import numpy as np
+import threading
 
 
+ndi_frame = None
 app = Flask(__name__)
 
 # Directories for uploads and output
@@ -17,9 +21,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 @app.route('/upload', methods=['POST'])
 def upload_image():
     # Check if 'file' is in the request
-    if 'file' not in request.files:
-        print("No file part in request")
-        return jsonify({"error": "No file part"}), 400
+    # if 'file' not in request.files:
+    #     print("No file part in request")
+    #     return jsonify({"error": "No file part"}), 400
 
     file = request.files['file']
     prompt = request.form.get('prompt', 'No prompt provided')
@@ -37,67 +41,73 @@ def upload_image():
         return jsonify({"error": "Invalid objectPosition format. Use (x,y)"}), 400
 
     # Check if file has a valid filename
-    if file.filename == '':
-        print("No selected file")
-        return jsonify({"error": "No selected file"}), 400
+    # if file.filename == '':
+    #     print("No selected file")
+    #     return jsonify({"error": "No selected file"}), 400
 
-    # Save the uploaded file
+    # # Save the uploaded file
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    file.save(file_path)
+    if(file_type=="RGB") :
+        #capture_ndi_window_with_adjusted_contrast(file_path)
+        #capture_ndi_window_with_contour_enhancement(file_path)
+        capture_ndi_window_with_contrast_and_brightness(file_path)
+    #capture_ndi_window(output_path=file_path)
+    else: 
+        file.save(file_path)
     
 
 
-    # Perform the flips, x-offset shift, and debug drawing
-    try:
-        image = Image.open(file_path).convert("RGBA")
-        width, height = image.size  # Get image dimensions
-        object_x = width - object_x
-        if file_type == "RGB":
-            object_x+=30
+    # # Perform the flips, x-offset shift, and debug drawing
+    # try:
+    #     image = Image.open(file_path).convert("RGBA")
+    #     width, height = image.size  # Get image dimensions
+    #     object_x = width - object_x
+    #     if file_type == "RGB":
+    #         object_x+=30
 
-        # Flip image and adjust object_x for left-to-right flip
-        if flip_y:
-            # Adjust object_x for horizontal flip
-            
-            # Flip the image horizontally and vertically
-            image = image.transpose(Image.FLIP_LEFT_RIGHT)
-            image = image.transpose(Image.FLIP_TOP_BOTTOM)
-            print("Image flipped left-to-right, then upside down")
-        else:
-            # Only flip the image vertically
-            image = image.transpose(Image.FLIP_TOP_BOTTOM)
-            print("Image flipped upside down")
+    #     # Flip image and adjust object_x for left-to-right flip
+    #     if flip_y:
+    #         # Adjust object_x for horizontal flip
+    #         # Flip the image horizontally and vertically
+    #         image = image.transpose(Image.FLIP_LEFT_RIGHT)
+    #         image = image.transpose(Image.FLIP_TOP_BOTTOM)
+    #         print("Image flipped left-to-right, then upside down")
+    #     else:
+    #         # Only flip the image vertically
+    #         image = image.transpose(Image.FLIP_TOP_BOTTOM)
+    #         print("Image flipped upside down")
 
-        # Draw a red dot at the adjusted objectPosition if debugDraw is true
-        if debug_draw:
-            draw = ImageDraw.Draw(image)
-            dot_radius = 5  # Radius of the red dot
-            draw.ellipse(
-                [
-                    (object_x - dot_radius, object_y - dot_radius),
-                    (object_x + dot_radius, object_y + dot_radius)
-                ],
-                fill=(255, 0, 0, 255)  # Red color
-            )
-            print(f"Red dot drawn at adjusted position ({object_x}, {object_y})")
+    #     # Draw a red dot at the adjusted objectPosition if debugDraw is true
+    #     if debug_draw:
+    #         draw = ImageDraw.Draw(image)
+    #         dot_radius = 5  # Radius of the red dot
+    #         draw.ellipse(
+    #             [
+    #                 (object_x - dot_radius, object_y - dot_radius),
+    #                 (object_x + dot_radius, object_y + dot_radius)
+    #             ],
+    #             fill=(255, 0, 0, 255)  # Red color
+    #         )
+    #         print(f"Red dot drawn at adjusted position ({object_x}, {object_y})")
 
-        # Save the modified image back to the same file path
-        image.save(file_path)
+    #     # Save the modified image back to the same file path
+    #     image.save(file_path)
     
    
         
         
 
-    except Exception as e:
-        print(f"Failed to process image: {e}")
-        return jsonify({"error": "Image processing failed"}), 500
+    # except Exception as e:
+    #     print(f"Failed to process image: {e}")
+    #     return jsonify({"error": "Image processing failed"}), 500
 
 
 
     if file_type == "RGB":
         object_position = (object_x,object_y)
         ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
-        call_removebg_subprocess( file_path, ProccedFile, object_position)
+        call_Fast3D(file_path, "./output", urlid)
+        # call_removebg_subprocess( file_path, ProccedFile, object_position,urlid)
 
 
     # Return the response including all received parameters for reference
@@ -113,17 +123,121 @@ def upload_image():
     }), 200
 
 
+def capture_ndi_window_with_contrast_and_brightness(output_path="capture.png", alpha=2.0, beta=-50):
+    """
+    Capture the current NDI frame, enhance contrast, and lower brightness.
+    
+    Parameters:
+        output_path (str): Path to save the image.
+        alpha (float): Contrast adjustment factor (1.0 = no change, >1.0 increases contrast).
+        beta (int): Brightness adjustment value (negative to lower brightness, positive to increase).
+    """
+    global ndi_frame
 
-def call_Fast3D(input_file,output_dir,zipfile_name):
+    if ndi_frame is not None:
+        try:
+            # Adjust contrast and brightness
+            adjusted_frame = cv2.convertScaleAbs(ndi_frame, alpha=alpha, beta=beta)
+
+            # Save the adjusted frame as a PNG image
+            cv2.imwrite(output_path, adjusted_frame)
+            print(f"NDI window with enhanced contrast and lowered brightness saved to {output_path}")
+        except Exception as e:
+            print(f"Error capturing NDI window: {e}")
+    else:
+        print("No NDI frame available to capture.")
+
+
+def capture_ndi_window_with_contour_enhancement(output_path="capture_contour.png"):
+    """
+    Capture the current NDI frame, enhance contours, and save the result.
+    
+    Parameters:
+        output_path (str): Path to save the enhanced image.
+    """
+    global ndi_frame
+
+    if ndi_frame is not None:
+        try:
+            # Convert to grayscale for edge detection
+            gray_frame = cv2.cvtColor(ndi_frame, cv2.COLOR_BGR2GRAY)
+
+            # Apply Canny edge detection
+            edges = cv2.Canny(gray_frame, threshold1=50, threshold2=150)
+
+            # Convert edges to a 3-channel image
+            edges_colored = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+
+            # Blend the edges with the original frame to enhance contours
+            enhanced_frame = cv2.addWeighted(ndi_frame, 0.8, edges_colored, 0.5, 0)
+
+            # Save the enhanced frame as a PNG image
+            cv2.imwrite(output_path, enhanced_frame)
+            print(f"NDI window with enhanced contours saved to {output_path}")
+        except Exception as e:
+            print(f"Error capturing NDI window: {e}")
+    else:
+        print("No NDI frame available to capture.")
+
+
+
+
+import subprocess
+
+
+
+def adjust_contrast(frame, alpha=1.5, beta=0):
+    """
+    Adjusts contrast and brightness of the image.
+    Alpha: Contrast control [1.0-3.0]
+    Beta: Brightness control [0-100]
+    """
+    return cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+
+def capture_ndi_window_with_adjusted_contrast(output_path="capture.png"):
+    global ndi_frame
+
+    if ndi_frame is not None:
+        try:
+            enhanced_frame = adjust_contrast(ndi_frame, alpha=2.0, beta=30)
+            cv2.imwrite(output_path, enhanced_frame)
+            print(f"NDI window with adjusted contrast saved to {output_path}")
+        except Exception as e:
+            print(f"Error capturing NDI window: {e}")
+    else:
+        print("No NDI frame available to capture.")
+
+
+
+
+def capture_ndi_window(output_path="capture.png"):
+    global ndi_frame
+
+    if ndi_frame is not None:
+        try:
+            # Save the current NDI frame as a PNG image
+            cv2.imwrite(output_path, ndi_frame)
+            print(f"NDI window captured and saved to {output_path}")
+        except Exception as e:
+            print(f"Error capturing NDI window: {e}")
+    else:
+        print("No NDI frame available to capture.")
+
+
+
+def call_Fast3D(input_file, output_dir, zipfile_name):
     # Command and arguments
     command = "python"
     script = "Fast3D.py"
-    # input_file = "demo_files/examples/chair1.png"
-    # output_dir = "output/"
-    # zipfile_name = "output.zip"
 
-    # Construct the command as a list
-    cmd = [command, script, input_file, output_dir, zipfile_name]
+    # Construct the command as a list with proper flags
+    cmd = [
+        command,
+        script,
+        "--input_file", input_file,
+        "--output_dir", output_dir,
+        "--urlid", zipfile_name
+    ]
 
     try:
         # Run the command
@@ -136,6 +250,7 @@ def call_Fast3D(input_file,output_dir,zipfile_name):
         print(f"Return Code: {e.returncode}")
         print(f"Output: {e.output}")
         print(f"Error: {e.stderr}")
+
         
         
         
@@ -228,55 +343,104 @@ def call_removebg_subprocess( input_file, output_file, point_data,urlid):
 
 
 
-if __name__ == '__main__':
+def ndi_receiver():
+    global ndi_frame
+
+    if not ndi.initialize():
+        print("Cannot initialize NDI")
+        return 0
+
+    ndi_find = ndi.find_create_v2()
+
+    if ndi_find is None:
+        print("Cannot create NDI find")
+        return 0
+
+    sources = []
+    while not len(sources) > 0:
+        print('Looking for NDI sources...')
+        ndi.find_wait_for_sources(ndi_find, 1000)
+        sources = ndi.find_get_current_sources(ndi_find)
+
+    print("NDI sources found:", sources)
+    ndi_recv_create = ndi.RecvCreateV3()
+    ndi_recv_create.color_format = ndi.RECV_COLOR_FORMAT_BGRX_BGRA
+
+    ndi_recv = ndi.recv_create_v3(ndi_recv_create)
+
+    if ndi_recv is None:
+        print("Cannot create NDI receiver")
+        return 0
+
+    ndi.recv_connect(ndi_recv, sources[0])
+
+    ndi.find_destroy(ndi_find)
+
+    while True:
+        t, v, _, _ = ndi.recv_capture_v2(ndi_recv, 5000)
+
+        if t == ndi.FRAME_TYPE_VIDEO:
+            frame = np.copy(v.data)
+            ndi.recv_free_video_v2(ndi_recv, v)
+            # Convert 4-channel BGRX_BGRA to 3-channel BGR
+            ndi_frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+
+        if cv2.waitKey(1) & 0xff == 27:
+            break
+
+    ndi.recv_destroy(ndi_recv)
+    ndi.destroy()
+
+
+def NDIShow():
+    global ndi_frame
+
+    # Start the NDI receiver thread
+
+    while True:
+        if ndi_frame is not None:
+            cv2.imshow('NDI Stream', ndi_frame)
+
+        if cv2.waitKey(1) & 0xff == 27:
+            break
+
+    cv2.destroyAllWindows()
+
+
+
+def flask_server():
     app.run(host='0.0.0.0', port=5000)
 
 
+def run_server_process():
+    subprocess.run(["RunServer.bat", "8000"], shell=True)
 
 
 
 
+if __name__ == '__main__':
+    ndi_thread = threading.Thread(target=ndi_receiver)
+    ndi_thread.daemon = True
+    ndi_thread.start()
+
+    # Thread for Flask app
+    flask_thread = threading.Thread(target=flask_server)
+    flask_thread.daemon = True
+    flask_thread.start()
+
+    # Thread for running the external server process
+    server_thread = threading.Thread(target=run_server_process)
+    server_thread.daemon = True
+    server_thread.start()
+
+    # Thread for displaying NDI stream
+    display_thread = threading.Thread(target=NDIShow)
+    display_thread.daemon = True
+    display_thread.start()
+
+    while True:
+        pass
 
 
 
-# def execute_subprocess(file_path):
-#     """
-#     Function to execute a subprocess with the specified file,
-#     convert resulting .glb to .fbx, and zip the .fbx file.
-#     :param file_path: Path to the file to process.
-#     :return: Dictionary containing success status, zip path, and error message if any.
-#     """
-#     try:
-#         # Step 1: Run the initial processing script (run.py)
-#         subprocess.run(["python", "run.py", file_path, "--output-dir", OUTPUT_FOLDER], check=True)
 
-#         # Assume run.py outputs a .glb file in the output directory
-#         glb_file_path = os.path.join(OUTPUT_FOLDER, os.path.splitext(os.path.basename(file_path))[0] + ".glb")
-        
-#         if not os.path.exists(glb_file_path):
-#             return {"success": False, "error": "GLB file not created by run.py"}
-
-#         # Step 2: Convert .glb to .fbx using pymeshlab
-#         fbx_file_path = os.path.join(OUTPUT_FOLDER, os.path.splitext(os.path.basename(file_path))[0] + ".fbx")
-        
-#         # Load the .glb file into a MeshLab workspace
-#         ms = pymeshlab.MeshSet()
-#         ms.load_new_mesh(glb_file_path)
-        
-#         # Save the mesh as an .fbx file
-#         ms.save_current_mesh(fbx_file_path)
-
-#         if not os.path.exists(fbx_file_path):
-#             return {"success": False, "error": "FBX conversion failed"}
-
-#         # Step 3: Zip the .fbx file
-#         zip_path = os.path.join(OUTPUT_FOLDER, os.path.splitext(os.path.basename(file_path))[0] + ".zip")
-#         with zipfile.ZipFile(zip_path, 'w') as zipf:
-#             zipf.write(fbx_file_path, os.path.basename(fbx_file_path))
-
-#         return {"success": True, "zip_path": zip_path}
-
-#     except subprocess.CalledProcessError as e:
-#         return {"success": False, "error": str(e)}
-#     except Exception as e:
-#         return {"success": False, "error": str(e)}
