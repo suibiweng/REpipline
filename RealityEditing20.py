@@ -21,7 +21,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 @app.route('/upload', methods=['POST'])
 def upload_image():
     # Check if 'file' is in the request
-    # if 'file' not in request.files:
     #     print("No file part in request")
     #     return jsonify({"error": "No file part"}), 400
 
@@ -48,66 +47,66 @@ def upload_image():
     # # Save the uploaded file
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     if(file_type=="RGB") :
-        #capture_ndi_window_with_adjusted_contrast(file_path)
+        # capture_ndi_window_with_adjusted_contrast(file_path)
         #capture_ndi_window_with_contour_enhancement(file_path)
-        capture_ndi_window_with_contrast_and_brightness(file_path)
-    #capture_ndi_window(output_path=file_path)
+        # file.save(file_path)
+        # capture_ndi_window_with_contrast_and_brightness(file_path)
+        capture_ndi_window(output_path=file_path)
     else: 
         file.save(file_path)
     
 
+    if file_type == "Mask":
+    # Perform the flips, x-offset shift, and debug drawing
+        try:
+            image = Image.open(file_path).convert("RGBA")
+            width, height = image.size  # Get image dimensions
+            object_x = width - object_x
+            if file_type == "RGB":
+                object_x+=30
 
-    # # Perform the flips, x-offset shift, and debug drawing
-    # try:
-    #     image = Image.open(file_path).convert("RGBA")
-    #     width, height = image.size  # Get image dimensions
-    #     object_x = width - object_x
-    #     if file_type == "RGB":
-    #         object_x+=30
+        # Flip image and adjust object_x for left-to-right flip
+            if flip_y:
+            # Adjust object_x for horizontal flip
+            # Flip the image horizontally and vertically
+                image = image.transpose(Image.FLIP_LEFT_RIGHT)
+                image = image.transpose(Image.FLIP_TOP_BOTTOM)
+                print("Image flipped left-to-right, then upside down")
+            else:
+            # Only flip the image vertically
+                image = image.transpose(Image.FLIP_TOP_BOTTOM)
+                print("Image flipped upside down")
 
-    #     # Flip image and adjust object_x for left-to-right flip
-    #     if flip_y:
-    #         # Adjust object_x for horizontal flip
-    #         # Flip the image horizontally and vertically
-    #         image = image.transpose(Image.FLIP_LEFT_RIGHT)
-    #         image = image.transpose(Image.FLIP_TOP_BOTTOM)
-    #         print("Image flipped left-to-right, then upside down")
-    #     else:
-    #         # Only flip the image vertically
-    #         image = image.transpose(Image.FLIP_TOP_BOTTOM)
-    #         print("Image flipped upside down")
+        # Draw a red dot at the adjusted objectPosition if debugDraw is true
+            if debug_draw:
+                draw = ImageDraw.Draw(image)
+                dot_radius = 5  # Radius of the red dot
+                draw.ellipse(
+                [
+                    (object_x - dot_radius, object_y - dot_radius),
+                    (object_x + dot_radius, object_y + dot_radius)
+                ],
+                fill=(255, 0, 0, 255)  # Red color
+            )
+                print(f"Red dot drawn at adjusted position ({object_x}, {object_y})")
 
-    #     # Draw a red dot at the adjusted objectPosition if debugDraw is true
-    #     if debug_draw:
-    #         draw = ImageDraw.Draw(image)
-    #         dot_radius = 5  # Radius of the red dot
-    #         draw.ellipse(
-    #             [
-    #                 (object_x - dot_radius, object_y - dot_radius),
-    #                 (object_x + dot_radius, object_y + dot_radius)
-    #             ],
-    #             fill=(255, 0, 0, 255)  # Red color
-    #         )
-    #         print(f"Red dot drawn at adjusted position ({object_x}, {object_y})")
+        # Save the modified image back to the same file path
+            image.save(file_path)
+            print(prompt)
 
-    #     # Save the modified image back to the same file path
-    #     image.save(file_path)
-    
-   
-        
-        
-
-    # except Exception as e:
-    #     print(f"Failed to process image: {e}")
-    #     return jsonify({"error": "Image processing failed"}), 500
+        except Exception as e:
+              print(f"Failed to process image: {e}")
+        return jsonify({"error": "Image processing failed"}), 500
 
 
 
     if file_type == "RGB":
         object_position = (object_x,object_y)
         ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
-        call_Fast3D(file_path, "./output", urlid)
-        # call_removebg_subprocess( file_path, ProccedFile, object_position,urlid)
+        #call_Fast3D(file_path, "./output", urlid)
+        call_removebg_subprocess( file_path, ProccedFile, object_position,urlid)
+    if file_type == "Mask":
+        object_position = (object_x,object_y)
 
 
     # Return the response including all received parameters for reference
@@ -186,6 +185,7 @@ import subprocess
 
 
 
+
 def adjust_contrast(frame, alpha=1.5, beta=0):
     """
     Adjusts contrast and brightness of the image.
@@ -193,6 +193,7 @@ def adjust_contrast(frame, alpha=1.5, beta=0):
     Beta: Brightness control [0-100]
     """
     return cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+
 
 def capture_ndi_window_with_adjusted_contrast(output_path="capture.png"):
     global ndi_frame
@@ -206,7 +207,6 @@ def capture_ndi_window_with_adjusted_contrast(output_path="capture.png"):
             print(f"Error capturing NDI window: {e}")
     else:
         print("No NDI frame available to capture.")
-
 
 
 
@@ -332,7 +332,7 @@ def call_removebg_subprocess( input_file, output_file, point_data,urlid):
         # Handle subprocess results
         if result.returncode == 0:
             print("Subprocess completed successfully!")
-            call_Fast3D(output_file,"./output",urlid)
+            #call_Fast3D(output_file,"./output",urlid)
             print(result.stdout)
         else:
             print("Subprocess failed!")
@@ -419,27 +419,31 @@ def run_server_process():
 
 
 if __name__ == '__main__':
-    ndi_thread = threading.Thread(target=ndi_receiver)
-    ndi_thread.daemon = True
-    ndi_thread.start()
+    call_SDimg("http://127.0.0.1:7860", 'SD_test.png', "img2img", "ice cream", input_image="./uploads/Cup.png", mask_image="./uploads/Mask.png")
 
-    # Thread for Flask app
-    flask_thread = threading.Thread(target=flask_server)
-    flask_thread.daemon = True
-    flask_thread.start()
 
-    # Thread for running the external server process
-    server_thread = threading.Thread(target=run_server_process)
-    server_thread.daemon = True
-    server_thread.start()
 
-    # Thread for displaying NDI stream
-    display_thread = threading.Thread(target=NDIShow)
-    display_thread.daemon = True
-    display_thread.start()
+    # ndi_thread = threading.Thread(target=ndi_receiver)
+    # ndi_thread.daemon = True
+    # ndi_thread.start()
 
-    while True:
-        pass
+    # # Thread for Flask app
+    # flask_thread = threading.Thread(target=flask_server)
+    # flask_thread.daemon = True
+    # flask_thread.start()
+
+    # # Thread for running the external server process
+    # server_thread = threading.Thread(target=run_server_process)
+    # server_thread.daemon = True
+    # server_thread.start()
+
+    # # Thread for displaying NDI stream
+    # display_thread = threading.Thread(target=NDIShow)
+    # display_thread.daemon = True
+    # display_thread.start()
+
+    # while True:
+    #     pass
 
 
 

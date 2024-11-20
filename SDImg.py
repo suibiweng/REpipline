@@ -66,6 +66,44 @@ def call_img2img_api(server_url, input_image, prompt, output_file_name, mask_ima
     }
     if mask_image:
         payload["mask"] = encode_file_to_base64(mask_image)
+        payload["inpainting_fill"] = 0
+        payload["cfg_scale"] = 1.5
+        payload["denoising_strength"] = 0.75
+        
+        
+        
+        payload["mask_blur_x"] = 4
+        payload["mask_blur_y"] = 4
+        # payload["mask_blur_y"]
+        payload["mask_blur"] = 4
+        
+        payload["initial_noise_multiplier"]=1
+        # payload ["mask_transparency"]=0
+        payload["inpainting_fill"] = 3
+        # payload["inpaint_full_res"]= 0
+        payload["inpaint_full_res_padding"]= 32
+        # payload["inpainting_mask_invert"]= 0
+        
+
+        
+
+
+
+
+
+
+#   "mask_blur_x": 4,
+#   "mask_blur_y": 4,
+#   "mask_blur": 0,
+#   "mask_round": true,
+#   "inpainting_fill": 0,
+#   "inpaint_full_res": true,
+#   "inpaint_full_res_padding": 0,
+#   "inpainting_mask_invert": 0,
+
+
+
+
 
     response = call_api(server_url, 'sdapi/v1/img2img', **payload)
     for index, image in enumerate(response.get('images')):
