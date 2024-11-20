@@ -107,6 +107,8 @@ def upload_image():
         call_removebg_subprocess( file_path, ProccedFile, object_position,urlid)
     if file_type == "Mask":
         object_position = (object_x,object_y)
+        rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
+        call_SDimg("http://127.0.0.1:7860", f'{urlid}_Modify.png', "img2img", prompt, input_image=rgb, mask_image=file_path)
 
 
     # Return the response including all received parameters for reference
@@ -255,10 +257,10 @@ def call_Fast3D(input_file, output_dir, zipfile_name):
         
         
 def call_SDimg(server_url, output_file_name, mode, prompt, input_image=None, mask_image=None, 
-               seed=1, steps=20, width=512, height=512, cfg_scale=7.0, denoising_strength=0.5):
+                          seed=1, steps=20, width=512, height=512, cfg_scale=7.0, denoising_strength=0.5):
     """
     Calls the SDimg.py script as a subprocess with the specified arguments.
-    
+
     Arguments:
     - server_url: URL of the server (e.g., http://127.0.0.1:7862).
     - output_file_name: Base name for the output files.
@@ -273,33 +275,56 @@ def call_SDimg(server_url, output_file_name, mode, prompt, input_image=None, mas
     - cfg_scale: CFG scale for image generation.
     - denoising_strength: Denoising strength (for img2img mode).
     """
-    command = [
-        "python", "SDimg.py", 
-        "--server_url", server_url,
-        "--output_file_name", output_file_name,
-        "--mode", mode,
-        "--prompt", prompt,
-        "--seed", str(seed),
-        "--steps", str(steps),
-        "--width", str(width),
-        "--height", str(height),
-        "--cfg_scale", str(cfg_scale)
-    ]
-    
-    if mode == "img2img":
-        if not input_image:
-            raise ValueError("input_image is required for img2img mode.")
-        command.extend(["--input_image", input_image])
-        if mask_image:
-            command.extend(["--mask_image", mask_image])
-        command.extend(["--denoising_strength", str(denoising_strength)])
-    
     try:
-        subprocess.run(command, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Error while calling SDimg.py: {e}")
-    except FileNotFoundError:
-        print("Make sure SDimg.py exists and is accessible in the current directory.")
+        # Construct the command
+        command = [
+            "python", "SDimg.py", 
+            "--server_url", server_url,
+            "--output_file_name", output_file_name,
+            "--mode", mode,
+            "--prompt", prompt,
+            "--seed", str(seed),
+            "--steps", str(steps),
+            "--width", str(width),
+            "--height", str(height),
+            "--cfg_scale", str(cfg_scale)
+        ]
+
+        if mode == "img2img":
+            if not input_image:
+                raise ValueError("input_image is required for img2img mode.")
+            command.extend(["--input_image", input_image])
+            if mask_image:
+                command.extend(["--mask_image", mask_image])
+            command.extend(["--denoising_strength", str(denoising_strength)])
+        
+        # Call the script as a subprocess
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True
+        )
+
+        # Handle subprocess results
+        if result.returncode == 0:
+            print("Subprocess completed successfully!")
+            print(result.stdout)
+            
+            
+            
+            
+        else:
+            print("Subprocess failed!")
+            print(result.stderr)
+
+    except Exception as e:
+        print(f"Error calling subprocess: {e}")
+        
+        
+        
+        
+        
+        
 
 def call_removebg_subprocess( input_file, output_file, point_data,urlid):
     """

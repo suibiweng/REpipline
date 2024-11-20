@@ -107,7 +107,7 @@ def call_img2img_api(server_url, input_image, prompt, output_file_name, mask_ima
 
     response = call_api(server_url, 'sdapi/v1/img2img', **payload)
     for index, image in enumerate(response.get('images')):
-        save_path = f"{output_file_name}-{timestamp()}-{index}.png"
+        save_path = f"{output_file_name}.png"
         decode_and_save_base64(image, save_path)
 
 
