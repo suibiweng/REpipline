@@ -2,18 +2,63 @@ This is a JSON file with a set of room objects and their coordinates.
 I want you to create a sequence (in an array) that determines if each object is flammable. 
 Plz using only the URLID to create the sequence array.
 Remove the objects you think is not flammable.
-Just response a JSON file  only plz dont give me extra explainations.
-example:
+Just response a JSON file  with URID and the resone that the possible flammable reason
+Also acroding the types of fire add into the json as well
+Type A: Ordinary Combustibles
+Type B: Flammable Liquids
+Type C: Electrical Fires
+Type D: Flammable Metals
+
+
+
+output example:
 {
     "flammableObjects": [
-        "20241006180112",
-        "20241006180113",
-        "20241006180114",
-        "20241006180115",
-        "20241006180116",
-        "20241006180117",
-        "20241006180120"
+        {
+            "URID": "20241122002149a216b854",
+            "Reason": "Highly flammable material",
+            "FireType": "Type A",
+            "Description": "Ordinary Combustibles: Fires involving wood, paper, cloth, or plastics. These materials leave ashes and require water or foam to extinguish."
+        },
+        {
+            "URID": "202411220021499551447a",
+            "Reason": "Stored near ignition sources",
+            "FireType": "Type A",
+            "Description": "Ordinary Combustibles: Fires involving wood, paper, cloth, or plastics. These materials leave ashes and require water or foam to extinguish."
+        },
+        {
+            "URID": "2024112200214949709257",
+            "Reason": "Gasoline residue detected",
+            "FireType": "Type B",
+            "Description": "Flammable Liquids: Fires involving gasoline, oil, paint, or alcohol. These burn at the surface and are extinguished using foam, dry chemicals, or CO2."
+        },
+        {
+            "URID": "2024112200215051ab369d",
+            "Reason": "Dry wood structure",
+            "FireType": "Type A",
+            "Description": "Ordinary Combustibles: Fires involving wood, paper, cloth, or plastics. These materials leave ashes and require water or foam to extinguish."
+        },
+        {
+            "URID": "20241122002150df87c264",
+            "Reason": "Nearby gas leak",
+            "FireType": "Type B",
+            "Description": "Flammable Liquids: Fires involving gasoline, oil, paint, or alcohol. These burn at the surface and are extinguished using foam, dry chemicals, or CO2."
+        },
+        {
+            "URID": "2024112200215149df648b",
+            "Reason": "Overheated appliance",
+            "FireType": "Type C",
+            "Description": "Electrical Fires: Fires caused by energized electrical equipment or wiring. Extinguish using non-conductive agents like CO2 or dry chemicals. Avoid water."
+        },
+        {
+            "URID": "202411220021546891f019",
+            "Reason": "Nearby propane tanks",
+            "FireType": "Type B",
+            "Description": "Flammable Liquids: Fires involving propane, gasoline, oil, or alcohol. These burn at the surface and are extinguished using foam, dry chemicals, or CO2."
+        }
     ]
 }
+
+give me json only
 
 
