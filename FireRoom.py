@@ -27,19 +27,21 @@ def receive_room():
     global RoomJson
     global roomprocessing
     global FireSequence
+
+    # Get the incoming JSON data
     data = request.get_json()
-    RoomJson = data
-    print(f"Received Room data: {data}")
+
+    # Extract the filename from the data
+    filename = data.get("filename", "default_filename.json")  # Use a default value if no filename is provided
+
+    # Save the rest of the data to RoomJson
+    RoomJson = data.get("data", {})
+    print(f"Received filename: {filename}")
+
     roomprocessing = True
 
-    # Call the script and wait for the fire sequence to be processed
-    call_Interactable_script(RoomJson, f'Room.json', f'FireRoom')
-    
-    # time.sleep(60)  # Sleep for 60 seconds to wait for processing
-
-    # Load the FireSequence from the file (assuming it's JSON format)
-    # with open("FireRoom.json", 'r') as f:
-    #     FireSequence = json.load(f)
+    # Call the script and pass the RoomJson and filename
+    call_Interactable_script(RoomJson, filename, 'FireRoom')
 
     return jsonify({"message": "Room JSON received successfully"}), 200
 
@@ -87,7 +89,7 @@ def start_osc_server():
     disp.map("/PutOutFire", osc_PutoutFire_handler)
 
     # OSC server listening on port 5005
-    server = osc_server.ThreadingOSCUDPServer(("192.168.1.139", 5005), disp)
+    server = osc_server.ThreadingOSCUDPServer(("192.168.0.139", 5005), disp)
     print("OSC Server is running on port 5005...")
     server.serve_forever()
 
@@ -118,7 +120,7 @@ def call_Interactable_script(prompt, output_path,instruction):
 
 # Function to start Flask server
 def start_flask_server():
-    app.run(host='192.168.1.139', port=5000)
+    app.run(host='192.168.0.139', port=5000)
 
 def load_config(config_file):
     with open(config_file, 'r') as file:

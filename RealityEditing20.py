@@ -8,7 +8,8 @@ import json
 import NDIlib as ndi
 import numpy as np
 import threading
-
+import requests
+import time
 
 ndi_frame = None
 app = Flask(__name__)
@@ -43,7 +44,7 @@ def upload_image():
     # if file.filename == '':
     #     print("No selected file")
     #     return jsonify({"error": "No selected file"}), 400
-
+    print(prompt)
     # # Save the uploaded file
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     if(file_type=="RGB") :
@@ -92,7 +93,7 @@ def upload_image():
 
         # Save the modified image back to the same file path
             image.save(file_path)
-            print(prompt)
+            
 
         except Exception as e:
               print(f"Failed to process image: {e}")
@@ -108,6 +109,7 @@ def upload_image():
     if file_type == "Mask":
         object_position = (object_x,object_y)
         rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
+        print(prompt)
         call_SDimg("http://127.0.0.1:7860", f'{urlid}_Modify.png', "img2img", prompt, input_image=rgb, mask_image=file_path)
 
 
@@ -417,6 +419,48 @@ def ndi_receiver():
     ndi.destroy()
 
 
+def ipcam_receiver(url):
+    global ipcam_frame
+
+    while True:
+        try:
+            cap = requests.get(url, stream=True, timeout=10)
+            if cap.status_code == 200:
+                bytes = b''
+                for chunk in cap.iter_content(chunk_size=1024):
+                    bytes += chunk
+                    a = bytes.find(b'\xff\xd8')
+                    b = bytes.find(b'\xff\xd9')
+                    if a != -1 and b != -1:
+                        jpg = bytes[a:b+2]
+                        bytes = bytes[b+2:]
+                        ipcam_frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        
+            #             if(isTracking):
+            #                 results = objectron.process(ipcam_frame)
+            #                 if results.detected_objects:
+            #                  for detected_object in results.detected_objects:
+            # #print(detected_object)
+            #                     mp_drawing.draw_landmarks(ipcam_frame, 
+            #                           detected_object.landmarks_2d, 
+            #                           mp_objectron.BOX_CONNECTIONS)
+          
+            #                     mp_drawing.draw_axis(ipcam_frame, 
+            #                         detected_object.rotation,
+            #                         detected_object.translation)
+            else:
+                print("Failed to connect to the server, status code:", cap.status_code)
+                time.sleep(5)  # Wait before trying to reconnect
+        except requests.exceptions.RequestException as e:
+            print("Connection error:", e)
+            time.sleep(5)  # Wait before trying to reconnect
+        except Exception as e:
+            print("An unexpected error occurred:", e)
+            time.sleep(5)  # Wait before trying to reconnect
+
+
+
+
 def NDIShow():
     global ndi_frame
 
@@ -444,31 +488,36 @@ def run_server_process():
 
 
 if __name__ == '__main__':
-    call_SDimg("http://127.0.0.1:7860", 'SD_test.png', "img2img", "ice cream", input_image="./uploads/Cup.png", mask_image="./uploads/Mask.png")
-
-
+    # call_SDimg("http://127.0.0.1:7860", 'SD_test.png', "img2img", "ice cream", input_image="./uploads/Cup.png", mask_image="./uploads/Mask.png")
+    # ipcam_url=""
+    # ipcam_thread = threading.Thread(target=ipcam_receiver, args=(ipcam_url,))
+    # ipcam_thread.daemon = True
+    # ipcam_thread.start()
 
     # ndi_thread = threading.Thread(target=ndi_receiver)
     # ndi_thread.daemon = True
     # ndi_thread.start()
-
-    # # Thread for Flask app
-    # flask_thread = threading.Thread(target=flask_server)
-    # flask_thread.daemon = True
-    # flask_thread.start()
-
-    # # Thread for running the external server process
-    # server_thread = threading.Thread(target=run_server_process)
-    # server_thread.daemon = True
-    # server_thread.start()
 
     # # Thread for displaying NDI stream
     # display_thread = threading.Thread(target=NDIShow)
     # display_thread.daemon = True
     # display_thread.start()
 
-    # while True:
-    #     pass
+
+    # Thread for Flask app
+    flask_thread = threading.Thread(target=flask_server)
+    flask_thread.daemon = True
+    flask_thread.start()
+
+    # Thread for running the external server process
+    server_thread = threading.Thread(target=run_server_process)
+    server_thread.daemon = True
+    server_thread.start()
+
+
+
+    while True:
+        pass
 
 
 
