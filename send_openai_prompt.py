@@ -18,7 +18,7 @@ def generate_payload(api_key, prompt):
                 "content": prompt
             }
         ],
-        "max_tokens": 300
+        "max_tokens": 1000
     }
 
     return headers, payload

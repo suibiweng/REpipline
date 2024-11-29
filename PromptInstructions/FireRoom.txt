@@ -9,56 +9,59 @@ Type B: Flammable Liquids
 Type C: Electrical Fires
 Type D: Flammable Metals
 
-
+give me json only dont need explanation
+and at the end plz close the json file with a proper format
 
 output example:
+
+
 {
     "flammableObjects": [
         {
             "URID": "20241122002149a216b854",
             "Reason": "Highly flammable material",
             "FireType": "Type A",
-            "Description": "Ordinary Combustibles: Fires involving wood, paper, cloth, or plastics. These materials leave ashes and require water or foam to extinguish."
+            "Description": "Ordinary Combustibles Fires involving wood, paper, cloth, or plastics. These materials leave ashes and require water or foam to extinguish."
         },
         {
             "URID": "202411220021499551447a",
             "Reason": "Stored near ignition sources",
             "FireType": "Type A",
-            "Description": "Ordinary Combustibles: Fires involving wood, paper, cloth, or plastics. These materials leave ashes and require water or foam to extinguish."
+            "Description": "Ordinary Combustibles Fires involving wood, paper, cloth, or plastics. These materials leave ashes and require water or foam to extinguish."
         },
         {
             "URID": "2024112200214949709257",
             "Reason": "Gasoline residue detected",
             "FireType": "Type B",
-            "Description": "Flammable Liquids: Fires involving gasoline, oil, paint, or alcohol. These burn at the surface and are extinguished using foam, dry chemicals, or CO2."
+            "Description": "Flammable Liquids Fires involving gasoline, oil, paint, or alcohol. These burn at the surface and are extinguished using foam, dry chemicals, or CO2."
         },
         {
             "URID": "2024112200215051ab369d",
             "Reason": "Dry wood structure",
             "FireType": "Type A",
-            "Description": "Ordinary Combustibles: Fires involving wood, paper, cloth, or plastics. These materials leave ashes and require water or foam to extinguish."
+            "Description": "Ordinary Combustibles Fires involving wood, paper, cloth, or plastics. These materials leave ashes and require water or foam to extinguish."
         },
         {
             "URID": "20241122002150df87c264",
             "Reason": "Nearby gas leak",
             "FireType": "Type B",
-            "Description": "Flammable Liquids: Fires involving gasoline, oil, paint, or alcohol. These burn at the surface and are extinguished using foam, dry chemicals, or CO2."
+            "Description": "Flammable Liquids Fires involving gasoline, oil, paint, or alcohol. These burn at the surface and are extinguished using foam, dry chemicals, or CO2."
         },
         {
             "URID": "2024112200215149df648b",
             "Reason": "Overheated appliance",
             "FireType": "Type C",
-            "Description": "Electrical Fires: Fires caused by energized electrical equipment or wiring. Extinguish using non-conductive agents like CO2 or dry chemicals. Avoid water."
+            "Description": "Electrical Fires Fires caused by energized electrical equipment or wiring. Extinguish using non-conductive agents like CO2 or dry chemicals. Avoid water."
         },
         {
             "URID": "202411220021546891f019",
             "Reason": "Nearby propane tanks",
             "FireType": "Type B",
-            "Description": "Flammable Liquids: Fires involving propane, gasoline, oil, or alcohol. These burn at the surface and are extinguished using foam, dry chemicals, or CO2."
+            "Description": "Flammable Liquids Fires involving propane, gasoline, oil, or alcohol. These burn at the surface and are extinguished using foam, dry chemicals, or CO2."
         }
     ]
 }
 
-give me json only
+
 
 
