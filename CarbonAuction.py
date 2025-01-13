@@ -9,11 +9,8 @@ import subprocess
 app = Flask(__name__)
 
 RoomJson = None
-FireSequence = []
 roomprocessing = False
 
-# OSC Client to send messages
-client = udp_client.SimpleUDPClient("localhost", 8000)
 
 # Flask Routes
 @app.route('/receiveCropBox', methods=['POST'])
@@ -22,11 +19,46 @@ def receive_crop_box():
     print(f"Received CropBox data: {data}")
     return jsonify({"message": "CropBox JSON received successfully"}), 200
 
+@app.route('/AuctionSimulation', methods=['POST'])
+def receive_AuctionSimStart():
+    try:
+        # Parse the incoming JSON request
+        data = request.get_json()
+
+        # Extract the filename and URLs from the JSON data
+        filename = data.get("filename")
+        url_list = data.get("data", {}).get("urls", [])
+        
+        url_count = len(url_list)
+        
+        
+        call_Interactable_script(f"Give me {url_count} objects with their ids {url_list}", filename, "instruction")
+
+        if not filename or not url_list:
+            return jsonify({"error": "Invalid JSON format"}), 400
+
+        # Debug information (optional)
+        print(f"Received filename: {filename}")
+        print(f"Received URLs: {url_list}")
+
+        # Example: Save the data to a file
+        with open(f"{filename}.txt", "w") as file:
+            file.write("\n".join(url_list))
+
+        # Return a success response
+        return jsonify({"status": "success", "message": "Data received and processed"}), 200
+
+    except Exception as e:
+        # Handle errors
+        print(f"Error processing request: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route('/receiveRoom', methods=['POST'])
 def receive_room():
     global RoomJson
     global roomprocessing
-    global FireSequence
+    
 
     # Get the incoming JSON data
     data = request.get_json()
@@ -45,6 +77,10 @@ def receive_room():
 
     return jsonify({"message": "Room JSON received successfully"}), 200
 
+
+
+
+
 @app.route('/receiveMesh', methods=['POST'])
 def receive_mesh():
     data = request.get_json()
@@ -52,51 +88,11 @@ def receive_mesh():
     return jsonify({"message": "Mesh JSON received successfully"}), 200
 
 # OSC Handler
-def osc_PutoutFire_handler(unused_addr, *args):
-    global FireSequence
 
-    # Extract URID from OSC message (assuming it's passed as the first argument)
-    urid = args[0]
-    print(f"Received OSC message to put out fire for URID: {urid}")
 
-    # Find the furniture in FireSequence by URID
-    current_index = None
-    for i, item in enumerate(FireSequence):
-        if item["URID"] == urid:
-            current_index = i
-            break
-
-    if current_index is not None:
-        # If the item is found and there is a next item, send the next one via OSC
-        if current_index + 1 < len(FireSequence):
-            next_item = FireSequence[current_index + 1]
-            next_urid = next_item["URID"]
-            print(f"Next item in fire sequence: {next_item}")
-            
-            # Send the next URID via OSC with the /setFire address
-            client.send_message("/setFire", next_urid)
-            print(f"Sent OSC message: /setFire {next_urid}")
-        else:
-            print("No more items left in the fire sequence.")
-    else:
-        print(f"URID {urid} not found in the FireSequence.")
-
-# OSC Server Setup
-def start_osc_server():
-    disp = dispatcher.Dispatcher()
-
-    # Mapping OSC addresses to handler functions
-    disp.map("/PutOutFire", osc_PutoutFire_handler)
-
-    # OSC server listening on port 5005
-    server = osc_server.ThreadingOSCUDPServer(("192.168.0.241", 5005), disp)
-    print("OSC Server is running on port 5005...")
-    server.serve_forever()
-
-def call_Interactable_script(prompt, output_path,instruction):
+def call_Interactable_script(prompt, output_path, instruction):
     global open_ai_key
     # Construct the command to call the external script
-
     prompt_str = json.dumps(prompt)
 
     command = [
@@ -114,13 +110,17 @@ def call_Interactable_script(prompt, output_path,instruction):
     stdout, stderr = process.communicate()
     
     # Print the output and errors (if any)
-    print("STDOUT:", stdout)
-    print("STDERR:", stderr)
+    if process.returncode == 0:
+        print("Command executed successfully!")
+        print("STDOUT:", stdout)
+    else:
+        print("Command failed!")
+        print("STDERR:", stderr)
 
 
 # Function to start Flask server
 def start_flask_server():
-    app.run(host='192.168.0.241', port=5000)
+    app.run(host='0.0.0.0', port=5000)
 
 def load_config(config_file):
     with open(config_file, 'r') as file:
@@ -137,11 +137,6 @@ if __name__ == '__main__':
     # TexTurePaper_modulePath= config['TEXTurePaper_ModulePath']
     open_ai_key = config['open_ai_key']
     process = subprocess.Popen(["RunServer.bat","12000"], shell=True)
-
-    # Start OSC server in a separate thread
-    osc_thread = threading.Thread(target=start_osc_server)
-    osc_thread.daemon = True  # Allows the thread to close when the main program exits
-    osc_thread.start()
 
     # Start Flask server
     start_flask_server()

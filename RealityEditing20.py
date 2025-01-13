@@ -10,6 +10,7 @@ import numpy as np
 import threading
 import requests
 import time
+from RealityEditorManager import GeneratedModel
 
 ndi_frame = None
 app = Flask(__name__)
@@ -17,6 +18,36 @@ app = Flask(__name__)
 # Directories for uploads and output
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+
+@app.route('/command', methods=['POST'])
+def command():
+    command = request.form.get('Command', 'No prompt provided')
+    urlid = request.form.get('URLID', 'default')
+    prompt = request.form.get('Prompt', '')
+
+    if command == "IpcamCapture":
+        try:
+            capture_ipcam_frame(f"{urlid}_IPCAM.png")
+            print("IP camera frame captured successfully.")
+            call_Fast3D( f"{urlid}_IPCAM.png", "./output", urlid)
+            return jsonify({"message": "IP camera frame captured", "file": f"{urlid}_IPCAM.png"}), 200
+        except Exception as e:
+            print(f"Error capturing IP camera frame: {e}")
+            return jsonify({"error": str(e)}), 500
+    if command == "ShapeE":
+        GeneratedModel(urlid,prompt)
+        
+        
+        
+      
+    else:
+        return jsonify({"error": "Invalid command"}), 400
+    
+    
+    
+        
 
 
 @app.route('/upload', methods=['POST'])
@@ -44,7 +75,7 @@ def upload_image():
     # if file.filename == '':
     #     print("No selected file")
     #     return jsonify({"error": "No selected file"}), 400
-    print(prompt)
+
     # # Save the uploaded file
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     if(file_type=="RGB") :
@@ -53,11 +84,27 @@ def upload_image():
         # file.save(file_path)
         # capture_ndi_window_with_contrast_and_brightness(file_path)
         capture_ndi_window(output_path=file_path)
-    else: 
-        file.save(file_path)
+ 
+       
+        
+        
+    if(file_type=="RGB_modify") :
+        # capture_ndi_window_with_adjusted_contrast(file_path)
+        #capture_ndi_window_with_contour_enhancement(file_path)
+        # file.save(file_path)
+        # capture_ndi_window_with_contrast_and_brightness(file_path)
+        capture_ndi_window(output_path=file_path)
+   
+        
+
+    
+        
+        
+    
     
 
     if file_type == "Mask":
+        file.save(file_path)
     # Perform the flips, x-offset shift, and debug drawing
         try:
             image = Image.open(file_path).convert("RGBA")
@@ -93,7 +140,18 @@ def upload_image():
 
         # Save the modified image back to the same file path
             image.save(file_path)
+            print(prompt)
+            time.sleep(3)
+            rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
+            call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_Modify', "img2img", prompt, input_image=rgb, mask_image=file_path)
             
+            object_position = (object_x,object_y)
+            time.sleep(10)
+            print("wait!!!!!")
+            call_Fast3D(f'{urlid}_Modify.png',"./output",urlid)
+            #call_Fast3D(file_path, "./output", urlid)
+            # ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
+            # call_removebg_subprocess( f'{urlid}_Modify.png', ProccedFile, object_position,urlid)
 
         except Exception as e:
               print(f"Failed to process image: {e}")
@@ -106,11 +164,10 @@ def upload_image():
         ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
         #call_Fast3D(file_path, "./output", urlid)
         call_removebg_subprocess( file_path, ProccedFile, object_position,urlid)
-    if file_type == "Mask":
-        object_position = (object_x,object_y)
-        rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
-        print(prompt)
-        call_SDimg("http://127.0.0.1:7860", f'{urlid}_Modify.png', "img2img", prompt, input_image=rgb, mask_image=file_path)
+    # if file_type == "Mask":
+    #     object_position = (object_x,object_y)
+    #     rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
+    #     call_SDimg("http://127.0.0.1:7860", f'{urlid}_Modify.png', "img2img", prompt, input_image=rgb, mask_image=file_path)
 
 
     # Return the response including all received parameters for reference
@@ -149,6 +206,8 @@ def capture_ndi_window_with_contrast_and_brightness(output_path="capture.png", a
             print(f"Error capturing NDI window: {e}")
     else:
         print("No NDI frame available to capture.")
+
+
 
 
 def capture_ndi_window_with_contour_enhancement(output_path="capture_contour.png"):
@@ -254,11 +313,39 @@ def call_Fast3D(input_file, output_dir, zipfile_name):
         print(f"Return Code: {e.returncode}")
         print(f"Output: {e.output}")
         print(f"Error: {e.stderr}")
+        
+        
+def call_Real3D(input_file, output_dir, zipfile_name):
+    # Command and arguments
+    command = "python"
+    script = "Real3D.py"
+
+    # Construct the command as a list with proper flags
+    cmd = [
+        command,
+        script,
+        "--input_file", input_file,
+        "--output_dir", output_dir,
+        "--urlid", zipfile_name
+    ]
+
+    try:
+        # Run the command
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print("Subprocess executed successfully!")
+        print("Output:")
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print("Error while executing the subprocess.")
+        print(f"Return Code: {e.returncode}")
+        print(f"Output: {e.output}")
+        print(f"Error: {e.stderr}")
+
 
         
         
         
-def call_SDimg(server_url, output_file_name, mode, prompt, input_image=None, mask_image=None, 
+def call_SDimg(urlid,server_url, output_file_name, mode, prompt, input_image=None, mask_image=None, 
                           seed=1, steps=20, width=512, height=512, cfg_scale=7.0, denoising_strength=0.5):
     """
     Calls the SDimg.py script as a subprocess with the specified arguments.
@@ -309,8 +396,9 @@ def call_SDimg(server_url, output_file_name, mode, prompt, input_image=None, mas
 
         # Handle subprocess results
         if result.returncode == 0:
-            print("Subprocess completed successfully!")
+            print("Subprocess completed successfully!_SD")
             print(result.stdout)
+            #call_Fast3D(output_file_name,"./output",urlid)
             
             
             
@@ -359,10 +447,10 @@ def call_removebg_subprocess( input_file, output_file, point_data,urlid):
         # Handle subprocess results
         if result.returncode == 0:
             print("Subprocess completed successfully!")
-            #call_Fast3D(output_file,"./output",urlid)
+            call_Fast3D(output_file,"./output",urlid)
             print(result.stdout)
         else:
-            print("Subprocess failed!")
+            print("Subprocess failed!_F3D")
             print(result.stderr)
 
     except Exception as e:
@@ -419,48 +507,6 @@ def ndi_receiver():
     ndi.destroy()
 
 
-def ipcam_receiver(url):
-    global ipcam_frame
-
-    while True:
-        try:
-            cap = requests.get(url, stream=True, timeout=10)
-            if cap.status_code == 200:
-                bytes = b''
-                for chunk in cap.iter_content(chunk_size=1024):
-                    bytes += chunk
-                    a = bytes.find(b'\xff\xd8')
-                    b = bytes.find(b'\xff\xd9')
-                    if a != -1 and b != -1:
-                        jpg = bytes[a:b+2]
-                        bytes = bytes[b+2:]
-                        ipcam_frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
-                        
-            #             if(isTracking):
-            #                 results = objectron.process(ipcam_frame)
-            #                 if results.detected_objects:
-            #                  for detected_object in results.detected_objects:
-            # #print(detected_object)
-            #                     mp_drawing.draw_landmarks(ipcam_frame, 
-            #                           detected_object.landmarks_2d, 
-            #                           mp_objectron.BOX_CONNECTIONS)
-          
-            #                     mp_drawing.draw_axis(ipcam_frame, 
-            #                         detected_object.rotation,
-            #                         detected_object.translation)
-            else:
-                print("Failed to connect to the server, status code:", cap.status_code)
-                time.sleep(5)  # Wait before trying to reconnect
-        except requests.exceptions.RequestException as e:
-            print("Connection error:", e)
-            time.sleep(5)  # Wait before trying to reconnect
-        except Exception as e:
-            print("An unexpected error occurred:", e)
-            time.sleep(5)  # Wait before trying to reconnect
-
-
-
-
 def NDIShow():
     global ndi_frame
 
@@ -483,26 +529,88 @@ def flask_server():
 
 def run_server_process():
     subprocess.run(["RunServer.bat", "8000"], shell=True)
+    
+ipcam_frame = None     
+def ipcam_receiver(url):
+    global ipcam_frame
+
+    while True:
+        try:
+            cap = requests.get(url, stream=True, timeout=10)
+            if cap.status_code == 200:
+                bytes = b''
+                for chunk in cap.iter_content(chunk_size=1024):
+                    bytes += chunk
+                    a = bytes.find(b'\xff\xd8')
+                    b = bytes.find(b'\xff\xd9')
+                    if a != -1 and b != -1:
+                        jpg = bytes[a:b+2]
+                        bytes = bytes[b+2:]
+                        ipcam_frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        
+
+                print("Failed to connect to the server, status code:", cap.status_code)
+                time.sleep(5)  # Wait before trying to reconnect
+        except requests.exceptions.RequestException as e:
+            print("Connection error:", e)
+            time.sleep(5)  # Wait before trying to reconnect
+        except Exception as e:
+            print("An unexpected error occurred:", e)
+            time.sleep(5)  # Wait before trying to reconnect
+
+
+def show_ipcam_frame():
+    global ipcam_frame
+
+    while True:
+        if ipcam_frame is not None:
+            cv2.imshow('IP Camera Stream', ipcam_frame)
+        
+        # Break the loop when the ESC key is pressed
+        if cv2.waitKey(1) & 0xFF == 27:
+            break
+
+    cv2.destroyAllWindows()
+            
+def capture_ipcam_frame(output_path="captured_frame.jpg"):
+    global ipcam_frame
+
+    if ipcam_frame is not None:
+        cv2.imwrite(output_path, ipcam_frame)
+        print(f"Frame captured and saved to {output_path}")
+    else:
+        print("No frame available to capture!")
 
 
 
 
 if __name__ == '__main__':
     # call_SDimg("http://127.0.0.1:7860", 'SD_test.png', "img2img", "ice cream", input_image="./uploads/Cup.png", mask_image="./uploads/Mask.png")
-    # ipcam_url=""
+    
+    ipcam_url= "http://192.168.0.60:8001/video_feed"
+    
+    
+    # # Start the IP camera receiver thread
     # ipcam_thread = threading.Thread(target=ipcam_receiver, args=(ipcam_url,))
     # ipcam_thread.daemon = True
     # ipcam_thread.start()
+    
+    
 
-    # ndi_thread = threading.Thread(target=ndi_receiver)
-    # ndi_thread.daemon = True
-    # ndi_thread.start()
+    # # Show the IP camera frames
+    # ipcamView_thread = threading.Thread(target=show_ipcam_frame, daemon=True)
+    # ipcamView_thread.start()
+    
+    # Thread for displaying NDI stream
+    display_thread = threading.Thread(target=NDIShow)
+    display_thread.daemon = True
+    display_thread.start()
 
-    # # Thread for displaying NDI stream
-    # display_thread = threading.Thread(target=NDIShow)
-    # display_thread.daemon = True
-    # display_thread.start()
 
+
+    ndi_thread = threading.Thread(target=ndi_receiver)
+    ndi_thread.daemon = True
+    ndi_thread.start()
 
     # Thread for Flask app
     flask_thread = threading.Thread(target=flask_server)
