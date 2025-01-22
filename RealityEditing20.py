@@ -1,7 +1,6 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify ,send_from_directory
 from PIL import Image, ImageDraw
 import os
-import rembg
 import cv2
 import subprocess
 import json
@@ -11,6 +10,7 @@ import threading
 import requests
 import time
 from RealityEditorManager import GeneratedModel
+import argparse
 
 ndi_frame = None
 app = Flask(__name__)
@@ -45,7 +45,17 @@ def command():
     else:
         return jsonify({"error": "Invalid command"}), 400
     
-    
+
+@app.route("/download/<filename>", methods=["GET"])
+def download_file(filename):
+    directory_path = "" 
+    file_path = os.path.join(directory_path, filename)
+    print(f"Requested file: {file_path}")  # Log the file path
+    if not os.path.exists(file_path):
+        print("File not found!")  # Log if the file does not exist
+        return jsonify({"error": "File not found"}), 404
+
+    return send_from_directory(directory_path, filename, as_attachment=True)    
     
         
 
@@ -64,7 +74,6 @@ def upload_image():
     debug_draw = request.form.get('debugDraw', 'false').lower() == 'true'
     file_type = request.form.get('type', 'default')  # Retrieve the new 'type' field
     urlid = request.form.get('URLID', 'default') 
-
     # Parse the objectPosition into x, y coordinates
     try:
         object_x, object_y = map(int, object_position.strip("()").split(","))
@@ -78,32 +87,20 @@ def upload_image():
 
     # # Save the uploaded file
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    if(file_type=="RGB") :
-        # capture_ndi_window_with_adjusted_contrast(file_path)
-        #capture_ndi_window_with_contour_enhancement(file_path)
-        # file.save(file_path)
-        # capture_ndi_window_with_contrast_and_brightness(file_path)
-        capture_ndi_window(output_path=file_path)
- 
-       
-        
-        
-    if(file_type=="RGB_modify") :
-        # capture_ndi_window_with_adjusted_contrast(file_path)
-        #capture_ndi_window_with_contour_enhancement(file_path)
-        # file.save(file_path)
-        # capture_ndi_window_with_contrast_and_brightness(file_path)
-        capture_ndi_window(output_path=file_path)
-   
-        
+    # if(file_type=="RGB") :
+    #     # capture_ndi_window_with_adjusted_contrast(file_path)
+    #     #capture_ndi_window_with_contour_enhancement(file_path)
+    #     # file.save(file_path)
+    #     # capture_ndi_window_with_contrast_and_brightness(file_path)
+    #     capture_ndi_window(output_path=file_path)
+    # if(file_type=="RGB_modify") :
+    #     # capture_ndi_window_with_adjusted_contrast(file_path)
+    #     #capture_ndi_window_with_contour_enhancement(file_path)
+    #     # file.save(file_path)
+    #     # capture_ndi_window_with_contrast_and_brightness(file_path)
+    #     capture_ndi_window(output_path=file_path)
 
-    
-        
-        
-    
-    
-
-    if file_type == "Mask":
+    if file_type == "Mask" or file_type == "RGB" or file_type=="RGB_modify":
         file.save(file_path)
     # Perform the flips, x-offset shift, and debug drawing
         try:
@@ -139,16 +136,21 @@ def upload_image():
                 print(f"Red dot drawn at adjusted position ({object_x}, {object_y})")
 
         # Save the modified image back to the same file path
-            image.save(file_path)
-            print(prompt)
-            time.sleep(3)
-            rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
-            call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_Modify', "img2img", prompt, input_image=rgb, mask_image=file_path)
             
-            object_position = (object_x,object_y)
-            time.sleep(10)
-            print("wait!!!!!")
-            call_Fast3D(f'{urlid}_Modify.png',"./output",urlid)
+            
+            
+            image.save(file_path)
+            
+            if(file_type == "Mask"):
+                print(prompt)
+                time.sleep(3)
+                rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
+                call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_Modify', "img2img", prompt, input_image=rgb, mask_image=file_path)
+            
+                object_position = (object_x,object_y)
+                time.sleep(10)
+                print("wait!!!!!")
+                call_Fast3D(f'{urlid}_Modify.png',"./output",urlid)
             #call_Fast3D(file_path, "./output", urlid)
             # ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
             # call_removebg_subprocess( f'{urlid}_Modify.png', ProccedFile, object_position,urlid)
@@ -156,8 +158,6 @@ def upload_image():
         except Exception as e:
               print(f"Failed to process image: {e}")
         return jsonify({"error": "Image processing failed"}), 500
-
-
 
     if file_type == "RGB":
         object_position = (object_x,object_y)
@@ -168,8 +168,6 @@ def upload_image():
     #     object_position = (object_x,object_y)
     #     rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
     #     call_SDimg("http://127.0.0.1:7860", f'{urlid}_Modify.png', "img2img", prompt, input_image=rgb, mask_image=file_path)
-
-
     # Return the response including all received parameters for reference
     return jsonify({
         "message": "File uploaded and processed successfully",
@@ -584,49 +582,92 @@ def capture_ipcam_frame(output_path="captured_frame.jpg"):
 
 
 
+
+
+# if __name__ == '__main__':
+#     # call_SDimg("http://127.0.0.1:7860", 'SD_test.png', "img2img", "ice cream", input_image="./uploads/Cup.png", mask_image="./uploads/Mask.png")
+    
+#     ipcam_url= "http://192.168.0.60:8001/video_feed"
+    
+    
+#     # Start the IP camera receiver thread
+#     ipcam_thread = threading.Thread(target=ipcam_receiver, args=(ipcam_url,))
+#     ipcam_thread.daemon = True
+#     ipcam_thread.start()
+    
+    
+
+#     # Show the IP camera frames
+#     ipcamView_thread = threading.Thread(target=show_ipcam_frame, daemon=True)
+#     ipcamView_thread.start()
+    
+#     # Thread for displaying NDI stream
+#     display_thread = threading.Thread(target=NDIShow)
+#     display_thread.daemon = True
+#     display_thread.start()
+
+
+
+#     ndi_thread = threading.Thread(target=ndi_receiver)
+#     ndi_thread.daemon = True
+#     ndi_thread.start()
+
+#     # Thread for Flask app
+#     flask_thread = threading.Thread(target=flask_server)
+#     flask_thread.daemon = True
+#     flask_thread.start()
+
+#     # Thread for running the external server process
+#     # server_thread = threading.Thread(target=run_server_process)
+#     # server_thread.daemon = True
+#     # server_thread.start()
+
+
+
+#     while True:
+#         pass
+
+
+
 if __name__ == '__main__':
-    # call_SDimg("http://127.0.0.1:7860", 'SD_test.png', "img2img", "ice cream", input_image="./uploads/Cup.png", mask_image="./uploads/Mask.png")
-    
-    ipcam_url= "http://192.168.0.60:8001/video_feed"
-    
-    
-    # # Start the IP camera receiver thread
-    # ipcam_thread = threading.Thread(target=ipcam_receiver, args=(ipcam_url,))
-    # ipcam_thread.daemon = True
-    # ipcam_thread.start()
-    
-    
+    # Define arguments
+    parser = argparse.ArgumentParser(description="Control which threads to run.")
+    parser.add_argument('-ipcam', action='store_true', help="Run IP Camera Receiver thread.")
+    parser.add_argument('-ipcamShow', action='store_true', help="Run IP Camera Display thread.")
+    parser.add_argument('-ndi', action='store_true', help="Run NDI Receiver thread.")
+    parser.add_argument('--ipcam_url', type=str, default="http://192.168.0.60:8001/video_feed",
+                        help="URL for the IP camera feed.")
+    args = parser.parse_args()
 
-    # # Show the IP camera frames
-    # ipcamView_thread = threading.Thread(target=show_ipcam_frame, daemon=True)
-    # ipcamView_thread.start()
-    
-    # Thread for displaying NDI stream
-    display_thread = threading.Thread(target=NDIShow)
-    display_thread.daemon = True
-    display_thread.start()
-
-
-
-    ndi_thread = threading.Thread(target=ndi_receiver)
-    ndi_thread.daemon = True
-    ndi_thread.start()
-
-    # Thread for Flask app
+    # Start Flask server thread (always on)
     flask_thread = threading.Thread(target=flask_server)
     flask_thread.daemon = True
     flask_thread.start()
 
-    # Thread for running the external server process
-    server_thread = threading.Thread(target=run_server_process)
-    server_thread.daemon = True
-    server_thread.start()
+    # Start other threads based on arguments
+    if args.ipcam:
+        ipcam_thread = threading.Thread(target=ipcam_receiver, args=(args.ipcam_url,))
+        ipcam_thread.daemon = True
+        ipcam_thread.start()
+        ipcamView_thread = threading.Thread(target=show_ipcam_frame)
+        ipcamView_thread.daemon = True
+        ipcamView_thread.start()
+
+
+    if args.ndi:
+        ndi_thread = threading.Thread(target=ndi_receiver)
+        ndi_thread.daemon = True
+        ndi_thread.start()
+        display_thread = threading.Thread(target=NDIShow)
+        display_thread.daemon = True
+        display_thread.start()
 
 
 
+       
+    # Keep the main thread alive
     while True:
         pass
-
 
 
 

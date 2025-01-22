@@ -334,7 +334,7 @@ def default_handler(address, *args):
         prompt=args[1]
         GeneratedModel(URLID,prompt)
         call_Interactable_script(prompt, f"{URLID}_interactable.json","InteractableObject")
-        call_Interactable_script(prompt, f"{URLID}_physicsProperties.json","PhysicClassRoom")
+        # call_Interactable_script(prompt, f"{URLID}_physicsProperties.json","PhysicClassRoom")
         call_generate_sound_script(prompt,f"{URLID}_sfx.wav")
         
     if address == "/PromtGenerateModelonly":
@@ -986,7 +986,7 @@ def oscinit():
     # osc_server = osc_server.ThreadingOSCUDPServer(('10.0.0.123', 6161), dispatcherosc) #Bibi
     
 
-    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.1.139', 6161), dispatcherosc) #JamNET
+    osc_server = osc_server.ThreadingOSCUDPServer(('192.168.0.139', 6161), dispatcherosc) #JamNET
     # osc_server = osc_server.ThreadingOSCUDPServer(('127.0.0.1', 6161), dispatcherosc)  # Change the IP and port as needed
     # osc_server=osc_server.ThreadingOSCUDPServer(('192.168.137.1', 6161), dispatcherosc) #Laptop Hotspot
     OSCserver_thread = threading.Thread(target=osc_server.serve_forever)
