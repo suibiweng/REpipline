@@ -93,14 +93,15 @@ def upload_image():
     #     # file.save(file_path)
     #     # capture_ndi_window_with_contrast_and_brightness(file_path)
     #     capture_ndi_window(output_path=file_path)
-    # if(file_type=="RGB_modify") :
-    #     # capture_ndi_window_with_adjusted_contrast(file_path)
-    #     #capture_ndi_window_with_contour_enhancement(file_path)
-    #     # file.save(file_path)
-    #     # capture_ndi_window_with_contrast_and_brightness(file_path)
-    #     capture_ndi_window(output_path=file_path)
+    if(file_type=="RGB_modify") :
+        # capture_ndi_window_with_adjusted_contrast(file_path)
+        #capture_ndi_window_with_contour_enhancement(file_path)
+        file.save(file_path)
+        # capture_ndi_window_with_contrast_and_brightness(file_path)
+        #capture_ndi_window(output_path=file_path)
 
-    if file_type == "Mask" or file_type == "RGB" or file_type=="RGB_modify":
+    if file_type == "Mask" or file_type == "RGB" :
+        print(file_type)
         file.save(file_path)
     # Perform the flips, x-offset shift, and debug drawing
         try:
@@ -157,7 +158,6 @@ def upload_image():
 
         except Exception as e:
               print(f"Failed to process image: {e}")
-        return jsonify({"error": "Image processing failed"}), 500
 
     if file_type == "RGB":
         object_position = (object_x,object_y)
@@ -315,6 +315,8 @@ def call_Fast3D(input_file, output_dir, zipfile_name):
         
 def call_Real3D(input_file, output_dir, zipfile_name):
     # Command and arguments
+
+    print("Start Real3D")
     command = "python"
     script = "Real3D.py"
 
@@ -398,9 +400,6 @@ def call_SDimg(urlid,server_url, output_file_name, mode, prompt, input_image=Non
             print(result.stdout)
             #call_Fast3D(output_file_name,"./output",urlid)
             
-            
-            
-            
         else:
             print("Subprocess failed!")
             print(result.stderr)
@@ -445,7 +444,7 @@ def call_removebg_subprocess( input_file, output_file, point_data,urlid):
         # Handle subprocess results
         if result.returncode == 0:
             print("Subprocess completed successfully!")
-            call_Fast3D(output_file,"./output",urlid)
+            call_Real3D(output_file,"./output",urlid)
             print(result.stdout)
         else:
             print("Subprocess failed!_F3D")
