@@ -93,14 +93,14 @@ def upload_image():
     #     # file.save(file_path)
     #     # capture_ndi_window_with_contrast_and_brightness(file_path)
     #     capture_ndi_window(output_path=file_path)
-    if(file_type=="RGB_modify") :
-        # capture_ndi_window_with_adjusted_contrast(file_path)
-        #capture_ndi_window_with_contour_enhancement(file_path)
-        file.save(file_path)
+    # if(file_type=="RGB_modify") :
+    #     # capture_ndi_window_with_adjusted_contrast(file_path)
+    #     #capture_ndi_window_with_contour_enhancement(file_path)
+    #     file.save(file_path)
         # capture_ndi_window_with_contrast_and_brightness(file_path)
         #capture_ndi_window(output_path=file_path)
 
-    if file_type == "Mask" or file_type == "RGB" :
+    if file_type == "Mask" or file_type == "RGB" or file_type=="RGB_modify":
         print(file_type)
         file.save(file_path)
     # Perform the flips, x-offset shift, and debug drawing
@@ -135,6 +135,7 @@ def upload_image():
                 fill=(255, 0, 0, 255)  # Red color
             )
                 print(f"Red dot drawn at adjusted position ({object_x}, {object_y})")
+            print(f"position ({object_x}, {object_y})")
 
         # Save the modified image back to the same file path
             
@@ -151,7 +152,8 @@ def upload_image():
                 object_position = (object_x,object_y)
                 time.sleep(10)
                 print("wait!!!!!")
-                call_Fast3D(f'{urlid}_Modify.png',"./output",urlid)
+                #call_Fast3D(f'{urlid}_Modify.png',"./output",urlid)
+                call_Real3D(f'{urlid}_Modify.png',"./output",urlid)
             #call_Fast3D(file_path, "./output", urlid)
             # ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
             # call_removebg_subprocess( f'{urlid}_Modify.png', ProccedFile, object_position,urlid)
@@ -435,7 +437,8 @@ def call_removebg_subprocess( input_file, output_file, point_data,urlid):
                 "--input_file", input_file,
                 "--output_file", output_file,
                 "--point_data", point_data_str,
-                "--checkpoint_path","sam_vit_h_4b8939.pth"
+                "--checkpoint_path","sam_vit_h_4b8939.pth",
+                "--threshold",str(0.2)
             ],
             capture_output=True,
             text=True

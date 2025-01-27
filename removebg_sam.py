@@ -26,7 +26,7 @@ def loading_animation():
         time.sleep(0.1)
 
 # Background removal function using SAM with transparency
-def removebg_with_sam(input_file, output_file, point_data, checkpoint_path):
+def removebg_with_sam(input_file, output_file, point_data, checkpoint_path, threshold=0.5):
     try:
         # Initialize SAM predictor
         predictor = load_sam_model(checkpoint_path)
@@ -54,10 +54,21 @@ def removebg_with_sam(input_file, output_file, point_data, checkpoint_path):
         input_labels = np.array([1])
 
         # Predict the mask
-        masks, _, _ = predictor.predict(point_coords=input_points, point_labels=input_labels, multimask_output=False)
+        masks, scores, _ = predictor.predict(point_coords=input_points, point_labels=input_labels, multimask_output=True)
+        
+        print(scores)
+
+        # Filter masks by the threshold
+        mask = None
+        for i, score in enumerate(scores):
+            if score >= threshold:  # Keep masks with confidence >= threshold
+                mask = masks[i]
+                break
+
+        if mask is None:
+            raise ValueError(f"No masks met the confidence threshold of {threshold}.")
 
         # Apply the mask to create a transparent background
-        mask = masks[0]
         img_rgba = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)  # Convert to RGBA
         img_rgba[~mask] = (0, 0, 0, 0)  # Set non-mask areas to transparent (RGBA = 0,0,0,0)
 
@@ -77,11 +88,13 @@ if __name__ == "__main__":
     parser.add_argument("--output_file", type=str, required=True, help="Path to save the output image.")
     parser.add_argument("--point_data", type=str, required=True, help="Point data for segmentation (e.g., '150,300').")
     parser.add_argument("--checkpoint_path", type=str, required=True, help="Path to the SAM model checkpoint.")
+    parser.add_argument("--threshold", type=float, required=False, default=0.5, help="Confidence threshold for mask selection (default: 0.5).")
 
     args = parser.parse_args()
 
     # Parse the point_data argument
     point_data = [int(coord) for coord in args.point_data.split(",")]
 
-    # Call the background removal function
-    removebg_with_sam(args.input_file, args.output_file, point_data, args.checkpoint_path)
+    # Call the background removal function, including the threshold
+    removebg_with_sam(args.input_file, args.output_file, point_data, args.checkpoint_path, threshold=args.threshold)
+

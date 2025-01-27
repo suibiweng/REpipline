@@ -17,9 +17,11 @@ def run_subprocess(input_file, output_dir):
     command = "python"
 
     script = Real3DPath+"run.py"
+    
+    checkpointPath= Real3DPath+"checkpoint"
 
     # Construct the command as a list
-    cmd = [command, script, input_file, "--output-dir", output_dir,"--model-save-format", 'glb' ]
+    cmd = [command, script, input_file, "--output-dir", output_dir,"--model-save-format", 'glb' , "--pretrained-model-name-or-path",checkpointPath]
 
     try:
         # Run the command
