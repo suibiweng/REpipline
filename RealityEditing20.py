@@ -120,6 +120,7 @@ def upload_image():
                 print("Image flipped left-to-right, then upside down")
             else:
             # Only flip the image vertically
+             
                 image = image.transpose(Image.FLIP_TOP_BOTTOM)
                 print("Image flipped upside down")
 
@@ -145,10 +146,22 @@ def upload_image():
             
             if(file_type == "Mask"):
                 print(prompt)
-                time.sleep(3)
-                rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
-                call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_Modify', "img2img", prompt, input_image=rgb, mask_image=file_path)
+               
+                offset_image(file_path)
+                
+          
+                rgb = os.path.join(UPLOAD_FOLDER, urlid+"_Modify.png")
+                
+                image = Image.open(rgb).convert("RGBA")
+                image = image.transpose(Image.FLIP_TOP_BOTTOM)
+                
+                image.save(rgb)
+                time.sleep(10)
             
+                
+                call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_Modify', "img2img", prompt, input_image=rgb, mask_image=file_path)
+                
+             
                 object_position = (object_x,object_y)
                 time.sleep(10)
                 print("wait!!!!!")
@@ -181,6 +194,31 @@ def upload_image():
         "objectPosition": (object_x, object_y),  # Return the modified coordinates
         "debugDraw": debug_draw
     }), 200
+def offset_image(image_path, offset_x=45, fill_color=(0, 0, 0)):
+    """
+    Offsets an image to the right by a given number of pixels.
+
+    :param image_path: Path to the input image.
+    :param offset_x: Number of pixels to shift the image to the right.
+    :param fill_color: Color to fill the left gap (default is black).
+    :return: Offset image (NumPy array).
+    """
+    # Load image
+    image = cv2.imread(image_path)
+
+    if image is None:
+        raise ValueError("Image not found or invalid image path.")
+
+    # Get image dimensions
+    height, width, channels = image.shape
+
+    # Create a new blank image with the same shape and fill with the specified color
+    offset_image = np.full((height, width, channels), fill_color, dtype=np.uint8)
+
+    # Offset image by shifting pixels
+    offset_image[:, offset_x:] = image[:, :-offset_x]
+
+    return offset_image
 
 
 def capture_ndi_window_with_contrast_and_brightness(output_path="capture.png", alpha=2.0, beta=-50):
