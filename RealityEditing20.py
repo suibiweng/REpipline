@@ -148,6 +148,8 @@ def upload_image():
                 print(prompt)
                
                 offset_image(file_path)
+ 
+                print("shiftMask")
                 
           
                 rgb = os.path.join(UPLOAD_FOLDER, urlid+"_Modify.png")
@@ -196,12 +198,11 @@ def upload_image():
     }), 200
 def offset_image(image_path, offset_x=45, fill_color=(0, 0, 0)):
     """
-    Offsets an image to the right by a given number of pixels.
+    Offsets an image to the right by a given number of pixels and replaces the original image.
 
     :param image_path: Path to the input image.
     :param offset_x: Number of pixels to shift the image to the right.
     :param fill_color: Color to fill the left gap (default is black).
-    :return: Offset image (NumPy array).
     """
     # Load image
     image = cv2.imread(image_path)
@@ -213,12 +214,13 @@ def offset_image(image_path, offset_x=45, fill_color=(0, 0, 0)):
     height, width, channels = image.shape
 
     # Create a new blank image with the same shape and fill with the specified color
-    offset_image = np.full((height, width, channels), fill_color, dtype=np.uint8)
+    offset_img = np.full((height, width, channels), fill_color, dtype=np.uint8)
 
     # Offset image by shifting pixels
-    offset_image[:, offset_x:] = image[:, :-offset_x]
+    offset_img[:, offset_x:] = image[:, :-offset_x]
 
-    return offset_image
+    # Save the modified image, replacing the original one
+    cv2.imwrite(image_path, offset_img)
 
 
 def capture_ndi_window_with_contrast_and_brightness(output_path="capture.png", alpha=2.0, beta=-50):
