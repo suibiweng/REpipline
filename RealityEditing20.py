@@ -42,6 +42,7 @@ def command():
     if command == "Prompttoplay":
         print("p2play")
     
+    
         
         
         
@@ -632,7 +633,6 @@ def call_OpenAI_script(prompt, output_path,instruction):
     command = [
         'python', 'send_openai_prompt.py',
         '--prompt', prompt,
-        '--api_key', open_ai_key,
         '--output_path', output_path,
         '--instructions_file', f'./PromptInstructions/{instruction}.txt'
     ]

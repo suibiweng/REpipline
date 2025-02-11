@@ -21,10 +21,19 @@ def generate_payload(api_key, prompt):
     }
     return headers, payload
 
+def load_config(config_file):
+    with open(config_file, 'r') as file:
+        config = json.load(file)
+    return config
+
 def main():
+    config_path = './config.json'
+    config = load_config(config_path)
+    open_ai_key = config['open_ai_key']
+    
     parser = argparse.ArgumentParser(description="Send prompt to OpenAI API, create assistant, and save the response as a JSON file")
     parser.add_argument('--prompt', type=str, required=True, help="Prompt for the API")
-    parser.add_argument('--api_key', type=str, required=True, help="OpenAI API Key")
+    parser.add_argument('--api_key', type=str, default=open_ai_key, help="OpenAI API Key (default: your-default-api-key-here)")
     parser.add_argument('--output_path', type=str, required=True, help="Path to save the output JSON file")
     parser.add_argument('--instructions_file', type=str, required=True, help="Path to the instructions text file")
 
