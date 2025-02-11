@@ -9,7 +9,8 @@ import numpy as np
 import threading
 import requests
 import time
-from RealityEditorManager import GeneratedModel
+#from RealityEditorManager import GeneratedModel
+from ShapEserver import ShapEgeneratemodel
 import argparse
 
 ndi_frame = None
@@ -19,7 +20,7 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-
+open_ai_key=""
 
 @app.route('/command', methods=['POST'])
 def command():
@@ -37,7 +38,10 @@ def command():
             print(f"Error capturing IP camera frame: {e}")
             return jsonify({"error": str(e)}), 500
     if command == "ShapeE":
-        GeneratedModel(urlid,prompt)
+        ShapEgeneratemodel(urlid,prompt)
+    if command == "Prompttoplay":
+        print("p2play")
+    
         
         
         
@@ -622,7 +626,26 @@ def capture_ipcam_frame(output_path="captured_frame.jpg"):
         print("No frame available to capture!")
 
 
-
+def call_OpenAI_script(prompt, output_path,instruction):
+    global open_ai_key
+    # Construct the command to call the external script
+    command = [
+        'python', 'send_openai_prompt.py',
+        '--prompt', prompt,
+        '--api_key', open_ai_key,
+        '--output_path', output_path,
+        '--instructions_file', f'./PromptInstructions/{instruction}.txt'
+    ]
+    
+    # Run the command using subprocess.Popen
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+    # Communicate with the process to capture stdout and stderr
+    stdout, stderr = process.communicate()
+    
+    # Print the output and errors (if any)
+    print("STDOUT:", stdout)
+    print("STDERR:", stderr)
 
 
 
@@ -669,9 +692,16 @@ def capture_ipcam_frame(output_path="captured_frame.jpg"):
 #     while True:
 #         pass
 
+def load_config(config_file):
+    with open(config_file, 'r') as file:
+        config = json.load(file)
+    return config
 
 
 if __name__ == '__main__':
+    config_path = './config.json'
+    config = load_config(config_path)
+    open_ai_key = config['open_ai_key']
     # Define arguments
     parser = argparse.ArgumentParser(description="Control which threads to run.")
     parser.add_argument('-ipcam', action='store_true', help="Run IP Camera Receiver thread.")
