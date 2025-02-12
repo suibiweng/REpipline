@@ -39,8 +39,9 @@ def command():
             return jsonify({"error": str(e)}), 500
     if command == "ShapeE":
         ShapEgeneratemodel(urlid,prompt)
-    if command == "Prompttoplay":
+    if command == "DynamicCoding":
         print("p2play")
+        call_OpenAI_script(prompt, f"{urlid}_DynamicCoding.json",command,urlid)
     
     
         
@@ -228,6 +229,25 @@ def offset_image(image_path, offset_x=45, fill_color=(0, 0, 0)):
     cv2.imwrite(image_path, offset_img)
 
 
+
+def save_lua_from_json(json_path, lua_save_path):
+    # Read JSON file
+    with open(json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    # Extract object name and Lua code
+    object_name = data.get("object", "UnknownObject")
+    lua_code = data.get("lua_code", "")
+
+    # Save Lua code to the specified path
+    with open(lua_save_path, 'w', encoding='utf-8') as lua_file:
+        lua_file.write(lua_code)
+
+    print(f"Object: {object_name}")
+    print(f"Lua script saved to: {lua_save_path}")
+
+    return object_name  # Return the object name if needed
+
 def capture_ndi_window_with_contrast_and_brightness(output_path="capture.png", alpha=2.0, beta=-50):
     """
     Capture the current NDI frame, enhance contrast, and lower brightness.
@@ -289,7 +309,7 @@ def capture_ndi_window_with_contour_enhancement(output_path="capture_contour.png
 
 
 
-import subprocess
+
 
 
 
@@ -627,7 +647,7 @@ def capture_ipcam_frame(output_path="captured_frame.jpg"):
         print("No frame available to capture!")
 
 
-def call_OpenAI_script(prompt, output_path,instruction):
+def call_OpenAI_script(prompt, output_path,instruction,urlid):
     global open_ai_key
     # Construct the command to call the external script
     command = [
@@ -643,9 +663,22 @@ def call_OpenAI_script(prompt, output_path,instruction):
     # Communicate with the process to capture stdout and stderr
     stdout, stderr = process.communicate()
     
-    # Print the output and errors (if any)
-    print("STDOUT:", stdout)
-    print("STDERR:", stderr)
+    # Check the return code for success or error
+    if process.returncode == 0:
+        print("Success:", stdout)
+
+        if(instruction=="DynamicCoding"):
+            shape=""
+            shape=save_lua_from_json(output_path,f"{urlid}.lua")
+            ShapEgeneratemodel(urlid,shape)
+
+
+
+
+        return True  # Indicate success
+    else:
+        print("Error:", stderr)
+        return False  # Indicate failure
 
 
 

@@ -20,3 +20,4 @@ uploads
 *.wav
 *.pth
 *.obj
+shap_e_model_cache
