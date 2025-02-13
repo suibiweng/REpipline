@@ -9,8 +9,11 @@ import numpy as np
 import threading
 import requests
 import time
+
+
+
 #from RealityEditorManager import GeneratedModel
-from ShapEserver import ShapEgeneratemodel
+# import ShapEserver
 import argparse
 
 ndi_frame = None
@@ -38,7 +41,10 @@ def command():
             print(f"Error capturing IP camera frame: {e}")
             return jsonify({"error": str(e)}), 500
     if command == "ShapeE":
-        ShapEgeneratemodel(urlid,prompt)
+        print(prompt+" "+urlid)
+        send_requestShapE(urlid,prompt)
+       
+        # ShapEserver.ShapEgeneratemodel(urlid,prompt)
     if command == "DynamicCoding":
         print("p2play")
         call_OpenAI_script(prompt, f"{urlid}_DynamicCoding.json",command,urlid)
@@ -51,6 +57,33 @@ def command():
     else:
         return jsonify({"error": "Invalid command"}), 400
     
+
+
+def send_requestShapE(urlid, prompt, url="http://127.0.0.1:6363/generate"):
+    data = {
+        "URID": urlid,  # Fixed key name (your Flask function expects "URID", not "URLID")
+        "prompt": prompt,
+        "filename": f"{urlid}_ShapE"
+    }
+    headers = {"Content-Type": "application/json"}  # Set correct JSON header
+
+    try:
+        response = requests.post(url, json=data, headers=headers)  # Use json=data
+        print("Response Status Code:", response.status_code)
+
+        # Try to parse JSON response
+        try:
+            response_json = response.json()
+            print("Response JSON:", response_json)
+        except requests.exceptions.JSONDecodeError:
+            print("Response is not JSON. Raw response:", response.text)
+
+    except requests.RequestException as e:
+        print("Error sending request:", e)
+
+
+
+
 
 @app.route("/download/<filename>", methods=["GET"])
 def download_file(filename):
@@ -475,8 +508,25 @@ def call_SDimg(urlid,server_url, output_file_name, mode, prompt, input_image=Non
         print(f"Error calling subprocess: {e}")
         
         
-        
-        
+
+def generate_3d_model(prompt, urid):
+    """
+    Calls shap_e_generator.py using subprocess and returns the generated model filename.
+
+    :param prompt: The text prompt to generate the 3D model.
+    :param urid: A unique identifier for the model.
+    :return: The generated model filename (or error message if the process fails).
+    """
+    try:
+        result = subprocess.run(
+            ["python", "shap_e_generator.py", prompt, urid], 
+            capture_output=True, 
+            text=True,
+            check=True  # Raises an exception if the process fails
+        )
+        return result.stdout.strip()  # Return the output, removing extra spaces/newlines
+    except subprocess.CalledProcessError as e:
+        return f"Error generating model: {e.stderr.strip()}"
         
         
 
@@ -593,7 +643,8 @@ def flask_server():
 
 
 def run_server_process():
-    subprocess.run(["RunServer.bat", "8000"], shell=True)
+    subprocess.Popen(["RunServer.bat", "8000"], shell=True)
+    subprocess.Popen(["python","ShapEserver.py","6363" ], shell=True)
     
 ipcam_frame = None     
 def ipcam_receiver(url):
@@ -670,7 +721,9 @@ def call_OpenAI_script(prompt, output_path,instruction,urlid):
         if(instruction=="DynamicCoding"):
             shape=""
             shape=save_lua_from_json(output_path,f"{urlid}.lua")
-            ShapEgeneratemodel(urlid,shape)
+            send_requestShapE(urlid,shape)
+            #generate_3d_model(shape, urlid)
+            #ShapEserver.ShapEgeneratemodel(urlid,shape)
 
 
 
@@ -682,48 +735,6 @@ def call_OpenAI_script(prompt, output_path,instruction,urlid):
 
 
 
-# if __name__ == '__main__':
-#     # call_SDimg("http://127.0.0.1:7860", 'SD_test.png', "img2img", "ice cream", input_image="./uploads/Cup.png", mask_image="./uploads/Mask.png")
-    
-#     ipcam_url= "http://192.168.0.60:8001/video_feed"
-    
-    
-#     # Start the IP camera receiver thread
-#     ipcam_thread = threading.Thread(target=ipcam_receiver, args=(ipcam_url,))
-#     ipcam_thread.daemon = True
-#     ipcam_thread.start()
-    
-    
-
-#     # Show the IP camera frames
-#     ipcamView_thread = threading.Thread(target=show_ipcam_frame, daemon=True)
-#     ipcamView_thread.start()
-    
-#     # Thread for displaying NDI stream
-#     display_thread = threading.Thread(target=NDIShow)
-#     display_thread.daemon = True
-#     display_thread.start()
-
-
-
-#     ndi_thread = threading.Thread(target=ndi_receiver)
-#     ndi_thread.daemon = True
-#     ndi_thread.start()
-
-#     # Thread for Flask app
-#     flask_thread = threading.Thread(target=flask_server)
-#     flask_thread.daemon = True
-#     flask_thread.start()
-
-#     # Thread for running the external server process
-#     # server_thread = threading.Thread(target=run_server_process)
-#     # server_thread.daemon = True
-#     # server_thread.start()
-
-
-
-#     while True:
-#         pass
 
 def load_config(config_file):
     with open(config_file, 'r') as file:
@@ -731,10 +742,19 @@ def load_config(config_file):
     return config
 
 
+def initialize():
+    # ShapEserver.initialize_models()
+
+
+    return True
+
+
 if __name__ == '__main__':
     config_path = './config.json'
     config = load_config(config_path)
     open_ai_key = config['open_ai_key']
+    run_server_process()
+    # initialize()
     # Define arguments
     parser = argparse.ArgumentParser(description="Control which threads to run.")
     parser.add_argument('-ipcam', action='store_true', help="Run IP Camera Receiver thread.")

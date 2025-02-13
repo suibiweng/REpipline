@@ -14,9 +14,9 @@ def send_test_request(command, urlid, prompt):
         print("Response Status Code:", response.status_code)
         print("Response JSON:", response.json())
     except Exception as e:
-        print("Error sending request:", e)
+        print("Error sending request:", e )
 
 # Test different commands
 # send_test_request("IpcamCapture", "test1", "")
-# send_test_request("ShapeE", "test2", "Generate a 3D model of a cat")
-send_test_request("DynamicCoding", "123456798", "A Bear flying around")
+#send_test_request("ShapeE", "12345678", "a_cat")
+send_test_request("DynamicCoding", "123456798", "A bear should continuously fly around in random directions in 3D space.")

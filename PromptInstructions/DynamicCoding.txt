@@ -1,7 +1,10 @@
 I am using Unity and controlling an object using Lua scripting. I want you to return a JSON file with the following structure:
-
-The first element should describe what the object is (e.g., 'Bear').
+The first element should describe what the object is.
+Variable name: "object"
 The second element should contain Lua code that follows my provided Lua template and incorporates my instructions.
+Variable name: "lua_code"
+If the instructions are unclear, assume a reasonable default behavior based on the object's real-world equivalent.
+Ensure the Lua script is executable and implements meaningful behavior instead of just printing messages.
 Return only the JSON file. No explanation.
 
 Here is the Lua template:
