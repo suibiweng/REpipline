@@ -11,6 +11,8 @@ from shap_e.diffusion.gaussian_diffusion import diffusion_from_config
 from shap_e.models.download import load_model, load_config
 from shap_e.util.notebooks import decode_latent_mesh
 import sys
+import tempfile
+import shutil
 
 # Initialize Flask
 app = Flask(__name__)
@@ -98,6 +100,8 @@ def generate(prompt, cfg, steps, fileFormat, filename,urlid):
 
     export_file('plyFile.ply', f'{filename}.{fileFormat}', fileFormat, urlid)
 
+
+
 def export_file(input_file, output_file, output_format, urlid):
     ms = pymeshlab.MeshSet()
     ms.load_new_mesh(input_file)
@@ -127,9 +131,19 @@ def export_file(input_file, output_file, output_format, urlid):
     else:
         print("Invalid output file format. Please choose from ply, fbx, obj, gltf, or glb.")
 
-    zip_file = f"{urlid}_ShapE.zip"
-    with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        zipf.write(output_file, os.path.basename(output_file))
+    # Ensure the file was saved before zipping
+    if os.path.exists(output_file):
+        temp_zip_path = tempfile.NamedTemporaryFile(delete=False, suffix=".zip").name
+        final_zip_path = f"{urlid}_ShapE.zip"
+
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            zipf.write(output_file, os.path.basename(output_file))
+
+        # Rename temp zip file to the final zip name after zipping is complete
+        shutil.move(temp_zip_path, final_zip_path)
+        print(f"Zipped the file successfully: {final_zip_path}")
+    else:
+        print(f"Error: {output_file} was not saved successfully.")
 
 if __name__ == '__main__': 
     port = 6363  # Default port
