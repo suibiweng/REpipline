@@ -22,3 +22,4 @@ uploads
 *.obj
 shap_e_model_cache
 *.lua
+*.ply

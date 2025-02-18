@@ -47,6 +47,7 @@ def command():
         # ShapEserver.ShapEgeneratemodel(urlid,prompt)
     if command == "DynamicCoding":
         print("p2play")
+        print(prompt)
         call_OpenAI_script(prompt, f"{urlid}_DynamicCoding.json",command,urlid)
     
     
@@ -59,27 +60,7 @@ def command():
     
 
 
-def send_requestShapE(urlid, prompt, url="http://127.0.0.1:6363/generate"):
-    data = {
-        "URID": urlid,  # Fixed key name (your Flask function expects "URID", not "URLID")
-        "prompt": prompt,
-        "filename": f"{urlid}_ShapE"
-    }
-    headers = {"Content-Type": "application/json"}  # Set correct JSON header
 
-    try:
-        response = requests.post(url, json=data, headers=headers)  # Use json=data
-        print("Response Status Code:", response.status_code)
-
-        # Try to parse JSON response
-        try:
-            response_json = response.json()
-            print("Response JSON:", response_json)
-        except requests.exceptions.JSONDecodeError:
-            print("Response is not JSON. Raw response:", response.text)
-
-    except requests.RequestException as e:
-        print("Error sending request:", e)
 
 
 
@@ -261,7 +242,27 @@ def offset_image(image_path, offset_x=45, fill_color=(0, 0, 0)):
     # Save the modified image, replacing the original one
     cv2.imwrite(image_path, offset_img)
 
+def send_requestShapE(urlid, prompt, url="http://127.0.0.1:6363/generate"):
+    data = {
+        "URID": urlid,  # Fixed key name (your Flask function expects "URID", not "URLID")
+        "prompt": prompt,
+        "filename": f"{urlid}_ShapE"
+    }
+    headers = {"Content-Type": "application/json"}  # Set correct JSON header
 
+    try:
+        response = requests.post(url, json=data, headers=headers)  # Use json=data
+        print("Response Status Code:", response.status_code)
+
+        # Try to parse JSON response
+        try:
+            response_json = response.json()
+            print("Response JSON:", response_json)
+        except requests.exceptions.JSONDecodeError:
+            print("Response is not JSON. Raw response:", response.text)
+
+    except requests.RequestException as e:
+        print("Error sending request:", e)
 
 def save_lua_from_json(json_path, lua_save_path):
     # Read JSON file

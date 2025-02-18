@@ -1,49 +1,34 @@
-I am using Unity and controlling an object using Lua scripting. I want you to return a JSON file with the following structure:
-The first element should describe what the object is.
-Variable name: "object"
-The second element should contain Lua code that follows my provided Lua template and incorporates my instructions.
-Variable name: "lua_code"
-If the instructions are unclear, assume a reasonable default behavior based on the object's real-world equivalent.
-Ensure the Lua script is executable and implements meaningful behavior instead of just printing messages.
-Return only the JSON file. No explanation.
+I am using Unity and controlling an object using Lua scripting.  
 
-Here is the Lua template:
-function start()
-    print('Lua Start() called!')
-end
+### **Return JSON with:**
+- `"object"`: Describes the object.  
+- `"lua_code"`: Contains Lua code that follows my provided Lua template.  
 
-function update(deltaTime)
-    print('Lua Update() called! DeltaTime:', deltaTime)
-end
+### **Lua Rules:**
+1. **All variables in Lua must be global** for persistence.  
+2. **Use only the following Unity components**, exposed via **proxies**:
+   - `transformProxy` → Controls position, rotation, movement, and scale.
+     - Functions: `SetPosition(Vector3)`, `GetPosition()`, `SetRotation(Vector3)`, `GetRotation()`, `Translate(Vector3)`, `Rotate(Vector3)`, `SetScale(Vector3)`, `GetScale()`
+   - `gameObjectProxy` → Controls GameObject properties.
+     - Functions: `SetActive(bool)`, `IsActive()`, `SetName(string)`, `GetName()`
+   - `uiText` → A `Text` component for UI updates.  
+   - `uiButton` → A `Button` component for handling clicks.  
+   - `rb` → A `Rigidbody` for physics interactions.  
 
-function fixedUpdate()
-    print('Lua FixedUpdate() for physics calculations')
-end
+3. **DO NOT use `transform:Translate()` or direct Unity methods**—always use `transformProxy` and `gameObjectProxy`.  
+4. **If the instructions are unclear, assume a reasonable default behavior** based on the object's real-world equivalent.  
+5. **The Lua script must be executable** and implement meaningful behavior instead of just printing messages.  
 
-function lateUpdate()
-    print('Lua LateUpdate() called')
-end
+### **Strict Formatting Rules (Must Follow Exactly)**
+- **Return only raw JSON.**  
+- **DO NOT** wrap the response in Markdown code blocks (` ``` `).  
+- **DO NOT** include additional explanations, formatting, or extra fields.  
+- **The response must start directly with `{ "object": ... }`** (no `content` key).  
 
-function onTriggerEnter(other)
-    print('Lua OnTriggerEnter() called with:', other.name)
-end
+### **Example of a Correct Response:**  
 
-function onTriggerExit(other)
-    print('Lua OnTriggerExit() called with:', other.name)
-end
-
-function onCollisionEnter(other)
-    print('Lua OnCollisionEnter() with:', other.name)
-end
-
-function onCollisionExit(other)
-    print('Lua OnCollisionExit() with:', other.name)
-end
-
-function onButtonClick()
-    print('Lua: Button clicked!')
-end
-
-function updateUIText(textObject, newText)
-    textObject.text = newText
-end
+```json
+{
+  "object": "Car",
+  "lua_code": "speed = 5\n\nfunction start()\n    print(' Car Start!')\nend\n\nfunction update(deltaTime)\n    transformProxy:Translate(Vector3(speed * deltaTime, 0, 0))\nend\n\nfunction onButtonClick()\n    speed = speed + 1\n    print('🚀 Speed increased:', speed)\nend\n\nfunction toggleCar()\n    local active = gameObjectProxy:IsActive()\n    gameObjectProxy:SetActive(not active)\n    print('🔧 Car Toggled:', not active)\nend"
+}
