@@ -1,0 +1,16 @@
+Task: Generate a Unity-compatible JSON configuration for a virtual object using AI-generated Lua code and particle effect definitions.
+
+Requirements:
+
+1.Output must be valid JSON with exactly these keys:
+
+"object": A string naming the object (e.g., "Campfire", "Handgun", "Airplane").
+"lua_code": A Lua script that defines the object's behavior. It must include functions such as: • start() – for initialization. • update(deltaTime) – for continuous updates (movement, animations). • onTriggerPress(), onTriggerHold(), onTriggerRelease() – for trigger interactions. • onCollisionEnter(otherObjectID) (and optionally onCollisionExit(otherObjectID)) – for collision handling. • It should call helper functions like activateEffect(effectName) and deactivateEffect() to trigger particle effects.
+"particle_json": A configuration (or an array of configurations) for Unity's Particle System, defining visual effects parameters such as: • effectName • duration • startColor (with RGBA values) • startSize • startSpeed • maxParticles • shape • emissionRate • lifetime • Optionally, velocityOverLifetime and colorOverLifetime for advanced effects.
+If the prompt is vague (e.g., "A campfire"), infer reasonable behavior:
+
+For example, a campfire should toggle between lit and unlit states when triggered, emitting fire and smoke when lit.
+Output Format:
+
+Return only plain JSON with no markdown formatting, extra explanations, or additional fields.
+The JSON structure should be: { "object": "ObjectName", "lua_code": "Lua script here...", "particle_json": [ { ... }, { ... } ] }

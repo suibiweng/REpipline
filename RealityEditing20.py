@@ -43,14 +43,15 @@ def command():
     if command == "ShapeE":
         print(prompt+" "+urlid)
         send_requestShapE(urlid,prompt)
-       
+        return jsonify({"message": "ShapeE"}), 200
         # ShapEserver.ShapEgeneratemodel(urlid,prompt)
     if command == "DynamicCoding":
         print("p2play")
         print(prompt)
-        call_OpenAI_script(prompt, f"{urlid}_DynamicCoding.json",command,urlid)
-    
-    
+        call_OpenAI_script(prompt, f"{urlid}_DynamicCoding.json",command+"2",urlid)
+        return jsonify({"message": "DynamicCodin"}), 200
+   
+
         
         
         
@@ -646,6 +647,7 @@ def flask_server():
 def run_server_process():
     subprocess.Popen(["RunServer.bat", "8000"], shell=True)
     subprocess.Popen(["python","ShapEserver.py","6363" ], shell=True)
+    open_the_sd()
     
 ipcam_frame = None     
 def ipcam_receiver(url):
@@ -723,6 +725,10 @@ def call_OpenAI_script(prompt, output_path,instruction,urlid):
             shape=""
             shape=save_lua_from_json(output_path,f"{urlid}.lua")
             send_requestShapE(urlid,shape)
+        if(instruction=="DynamicCoding2"):
+            shape=""
+            shape=save_lua_from_json(output_path,f"{urlid}.lua")
+            send_requestShapE(urlid,shape)
             #generate_3d_model(shape, urlid)
             #ShapEserver.ShapEgeneratemodel(urlid,shape)
 
@@ -734,7 +740,38 @@ def call_OpenAI_script(prompt, output_path,instruction,urlid):
         print("Error:", stderr)
         return False  # Indicate failure
 
-
+def open_the_sd(sd_folder="sd.webui", batch_file="run.bat"):
+    """
+    Opens the SD interface by executing the specified batch file using subprocess.Popen.
+    
+    Parameters:
+        sd_folder (str): The folder where the SD batch file is located (default is 'sd.webui').
+        batch_file (str): The name of the batch file to run (default is 'run.bat').
+    
+    Returns:
+        int: The return code from the batch file execution.
+    """
+    # Determine the current script's directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Construct the full path to the batch file
+    batch_path = os.path.join(current_dir, "..", sd_folder, batch_file)
+    
+    try:
+        # Start the process using Popen with shell=True for Windows batch file execution
+        process = subprocess.Popen(batch_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        # Wait for the process to complete and capture the output and errors
+        stdout, stderr = process.communicate()
+        
+        if stdout:
+            print("Output:\n", stdout.decode())
+        if stderr:
+            print("Errors:\n", stderr.decode())
+        
+        return process.returncode
+    except Exception as e:
+        print("Error opening the SD:", e)
+        return -1
 
 
 def load_config(config_file):
