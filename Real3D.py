@@ -7,6 +7,8 @@ from datetime import datetime
 from pymeshlab import MeshSet
 import json
 import aspose.threed as a3d
+import tempfile
+import shutil
 
 Real3DPath=""
 
@@ -89,17 +91,35 @@ def convert_glb_to_obj_with_textures(glb_path, obj_path):
         print(f"Error during conversion of {glb_path} to {obj_path} with textures: {e}")
         return False
 
-def create_zip_file(file_paths, zip_file_name):
-    """Create a zip file containing the specified files in the same folder as the script."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    zip_file_path = os.path.join(script_dir, zip_file_name)
 
-    with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for file_path in file_paths:
-            if os.path.exists(file_path):
-                arcname = os.path.basename(file_path)  # Save only the file name, not the full path
-                zipf.write(file_path, arcname)
-    print(f"Zipped files into {zip_file_path}")
+
+def create_zip_file(file_paths, final_zip_name):
+    """Create a zip file in a temporary location and rename it after completion."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Create a temporary zip file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip", dir=script_dir) as temp_zip:
+        temp_zip_path = temp_zip.name  # Get the temporary file path
+
+    try:
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in file_paths:
+                if os.path.exists(file_path):
+                    arcname = os.path.basename(file_path)  # Save only the file name, not the full path
+                    zipf.write(file_path, arcname)
+        print(f"Temporary zip created at {temp_zip_path}")
+
+        # Define final zip path
+        final_zip_path = os.path.join(script_dir, final_zip_name)
+
+        # Rename the temp zip file to the final name
+        shutil.move(temp_zip_path, final_zip_path)
+        print(f"Zipped files successfully renamed to {final_zip_path}")
+
+    except Exception as e:
+        print(f"Error creating zip file: {e}")
+        if os.path.exists(temp_zip_path):
+            os.remove(temp_zip_path)  # Clean up if error occurs
 
 def load_config(config_file):
     with open(config_file, 'r') as file:
