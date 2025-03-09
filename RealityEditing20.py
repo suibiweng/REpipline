@@ -9,7 +9,10 @@ import numpy as np
 import threading
 import requests
 import time
-
+import yaml
+import zipfile
+from REFileManager import REFileManager
+import shutil
 
 
 #from RealityEditorManager import GeneratedModel
@@ -21,15 +24,33 @@ app = Flask(__name__)
 
 # Directories for uploads and output
 UPLOAD_FOLDER = 'uploads'
+OBJECTs_FOLDER = 'objects'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OBJECTs_FOLDER, exist_ok=True)
+
+
+filemanager = REFileManager(base_directory=OBJECTs_FOLDER)
 
 open_ai_key=""
 
 @app.route('/command', methods=['POST'])
 def command():
+    global filemanager
     command = request.form.get('Command', 'No prompt provided')
     urlid = request.form.get('URLID', 'default')
     prompt = request.form.get('Prompt', '')
+
+    if(urlid!="default"):
+        if "@" in urlid:
+            parts = urlid.split('@')
+            print(parts[0])
+            print(parts[1])
+            folder=filemanager.get_folder(parts[0]) 
+        else:
+            folder=filemanager.get_folder(urlid)
+        print(urlid)
+        print(command)
+        print(prompt)
 
     if command == "IpcamCapture":
         try:
@@ -48,8 +69,18 @@ def command():
     if command == "DynamicCoding":
         print("p2play")
         print(prompt)
-        call_OpenAI_script(prompt, f"{urlid}_DynamicCoding.json",command+"2",urlid)
+        print(folder)
+        
+        call_OpenAI_script(prompt, f"{folder}/{urlid}_DynamicCoding.json",command+"2",urlid)
         return jsonify({"message": "DynamicCodin"}), 200
+     
+    if command == "ChangeTexture":
+         print( urlid+"Change Texture to"+prompt)
+
+         YamalPath=save_yaml_for_Texturefile(urlid, prompt, "append", f"{folder}/{urlid}.obj", 1, f"./textures/{urlid}.yaml")
+         RunTheTRXURE (YamalPath,urlid)
+
+         return jsonify({"message": ""}), 200
    
 
         
@@ -62,7 +93,14 @@ def command():
 
 
 
-
+def Geturlid(urlid):
+    if "@" in urlid:
+        parts = urlid.split('@')
+        print(parts[0])
+        print(parts[1])
+        return parts[0]
+    else:
+        return urlid
 
 
 
@@ -95,6 +133,11 @@ def upload_image():
     debug_draw = request.form.get('debugDraw', 'false').lower() == 'true'
     file_type = request.form.get('type', 'default')  # Retrieve the new 'type' field
     urlid = request.form.get('URLID', 'default') 
+    if(urlid!="default"):
+        folder=filemanager.get_folder(Geturlid(urlid))
+        print(urlid)
+   
+        print(prompt)
     # Parse the objectPosition into x, y coordinates
     try:
         object_x, object_y = map(int, object_position.strip("()").split(","))
@@ -182,14 +225,14 @@ def upload_image():
                 time.sleep(10)
             
                 
-                call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_Modify', "img2img", prompt, input_image=rgb, mask_image=file_path)
+                call_SDimg(urlid,"http://127.0.0.1:7860", f'{folder}/{urlid}_Modify', "img2img", prompt, input_image=rgb, mask_image=file_path)
                 
              
                 object_position = (object_x,object_y)
                 time.sleep(10)
                 print("wait!!!!!")
                 #call_Fast3D(f'{urlid}_Modify.png',"./output",urlid)
-                call_Real3D(f'{urlid}_Modify.png',"./output",urlid)
+                call_Real3D(f'{folder}/{urlid}_Modify.png',f"{folder}",urlid)
             #call_Fast3D(file_path, "./output", urlid)
             # ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
             # call_removebg_subprocess( f'{urlid}_Modify.png', ProccedFile, object_position,urlid)
@@ -530,7 +573,48 @@ def generate_3d_model(prompt, urid):
     except subprocess.CalledProcessError as e:
         return f"Error generating model: {e.stderr.strip()}"
         
+
+# def call_texture_script(urlid, output_yaml_file, prompt, config_path, extra_args=None):
+#     """
+#     Calls texture_script.py using subprocess with the given parameters.
+    
+#     Parameters:
+#         urlid (str): Experiment identifier.
+#         output_yaml_file (str): Name for the output YAML file.
+#         prompt (str): Prompt text for the texture process.
+#         config_path (str): Path to the JSON configuration file.
+#         extra_args (list, optional): Additional command-line arguments as a list.
         
+#     Returns:
+#         tuple: (stdout, stderr) outputs from the subprocess call.
+#     """
+#     # Build the command to call texture_script.py
+#     command = [
+#         "python", "texture_script.py",  # Replace with the actual path if needed
+#         "--urlid", urlid,
+#         "--output_yaml", output_yaml_file,
+#         "--prompt", prompt,
+#         "--config", config_path
+#     ]
+    
+#     # Include any extra arguments if provided
+#     if extra_args:
+#         command.extend(extra_args)
+    
+#     # Execute the command using subprocess
+#     result = subprocess.run(command, capture_output=True, text=True)
+    
+#     # Print outputs for debugging
+#     print("STDOUT:")
+#     print(result.stdout)
+#     print("STDERR:")
+#     print(result.stderr)
+    
+#     return result.stdout, result.stderr
+
+
+
+
 
 def call_removebg_subprocess( input_file, output_file, point_data,urlid):
     """
@@ -647,7 +731,7 @@ def flask_server():
 def run_server_process():
     subprocess.Popen(["RunServer.bat", "8000"], shell=True)
     subprocess.Popen(["python","ShapEserver.py","6363" ], shell=True)
-    open_the_sd()
+    #open_the_sd()
     
 ipcam_frame = None     
 def ipcam_receiver(url):
@@ -780,6 +864,131 @@ def load_config(config_file):
     return config
 
 
+def save_yaml_for_Texturefile(exp_name, text, append_direction, shape_path, seed, filename):
+    """
+    Create YAML data similar to the provided structure and save it to a file.
+
+    Parameters:
+        exp_name (str): Experiment name.
+        text (str): Text for the guide.
+        append_direction (str): Direction to append.
+        shape_path (str): Path to shape file.
+        seed (int): Random seed.
+        filename (str): Name of the file to save the YAML data.
+
+    Returns:
+        str: Absolute path of the file where the YAML data is saved.
+    """
+    data = {
+        'guide': {
+            'append_direction':True,
+            'shape_path': shape_path,
+            'text': f"{text}"+",{} view"
+        },
+        'log': {
+            'exp_name': exp_name
+        }, 
+        'optim': {
+            'seed': seed
+        }
+    }
+    with open(filename, 'w') as file:
+        yaml.dump(data, file, default_flow_style=False)
+    return os.path.abspath(filename)
+
+
+
+def RunTheTRXURE (YamalPath,URLid):
+    global TexTurePaper_modulePath
+
+    
+
+    # re_export_obj(f'{TexTurePaper_modulePath}\experiments\{URLid}\mesh\mesh.obj')
+    # zip_files_with_delay(f"{TexTurePaper_modulePath}\experiments\{URLid}\mesh",f"{URLid}_Instruction.zip", delay=10)
+
+    cmd = ["python", "-m", "scripts.run_texture", f"--config_path={YamalPath}"]
+
+    result = subprocess.Popen(
+    cmd,
+    cwd=TexTurePaper_modulePath,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True
+    )
+
+    stdout, stderr = result.communicate()
+
+    # Check if the command was executed successfully
+    if result.returncode == 0:
+        print("Command executed successfully.")
+        time.sleep(2)
+
+
+        #_in_Project = os.path.join(filemanager.get_folder(args.urlid), f'{args.urlid}.glb') 
+        # pathinTexture =f'{TexTurePaper_modulePath}\experiments\{URLid}\mesh\mesh.obj'
+        # obj_in_Project = os.path.join(filemanager.get_folder(URLid), f'{URLid}_Texture.obj')
+        # shutil.copy(pathinTexture, obj_in_Project)
+
+        source_folder = os.path.join(TexTurePaper_modulePath, 'experiments', URLid, 'mesh')
+        destination_folder = os.path.join(filemanager.get_folder(URLid), f'{URLid}_Texture')
+
+# Ensure the destination directory does not already exist
+    #     if os.path.exists(destination_folder):
+    # shutil.rmtree(destination_folder)  # Remove if it exists to avoid conflicts
+
+# Copy the entire folder and rename it
+        shutil.copytree(source_folder, destination_folder)
+
+
+
+
+
+        zip_files_with_delay(destination_folder,f"{URLid}_Texture.zip", delay=10)
+
+        
+
+        
+        # Optional: Print stdout
+        if result.stdout:
+            print("Output:", result.stdout)
+
+
+
+
+        
+    else:
+        print("Command failed with return code", result.returncode)
+
+        #zip_files_with_delay
+
+
+
+        # Print stderr for error
+        if result.stderr:
+            print("Error:", result.stderr)
+    
+    return True
+
+
+def zip_files_with_delay(directory, output_zip, delay=3):
+    time.sleep(delay)
+    
+    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Iterate through all files in the directory
+        for root, _, files in os.walk(directory):
+            for file in files:
+                # Determine the path of the file to be zipped
+                file_path = os.path.join(root, file)
+                
+                # Determine the arcname (the name of the file within the zip archive)
+                # This will be the relative path of the file with respect to the directory
+                arcname = os.path.relpath(file_path, directory)
+                
+                # Write the file to the zip archive
+                zipf.write(file_path, arcname)
+        
+        print("Done!")
+
 def initialize():
     # ShapEserver.initialize_models()
 
@@ -791,6 +1000,8 @@ if __name__ == '__main__':
     config_path = './config.json'
     config = load_config(config_path)
     open_ai_key = config['open_ai_key']
+    TexTurePaper_modulePath=config['TEXTurePaper_ModulePath']
+    # TexTurePaper_modulePath="D:\\Desktop\\RealityEditor\\PythonProject\\TEXTurePaper\\"
     run_server_process()
     # initialize()
     # Define arguments
@@ -831,6 +1042,3 @@ if __name__ == '__main__':
     # Keep the main thread alive
     while True:
         pass
-
-
-

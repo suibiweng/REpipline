@@ -24,3 +24,6 @@ shap_e_model_cache
 *.lua
 *.ply
 2025022717383368a7d89e_reconstruct
+objects
+shap_e
+__pycache__

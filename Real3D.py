@@ -9,10 +9,11 @@ import json
 import aspose.threed as a3d
 import tempfile
 import shutil
-
+from REFileManager import REFileManager
 Real3DPath=""
 
 
+filemanager = REFileManager()
 def run_subprocess(input_file, output_dir):
     global Real3DPath
     # Command and arguments
@@ -149,7 +150,13 @@ if __name__ == "__main__":
     
     # Step 2: Locate the generated mesh.glb
     glb_path = os.path.join(args.output_dir+'/0/', "mesh.glb")
-    
+    obj_path = os.path.join(args.output_dir,'0', "mesh.obj")
+    glb_in_Project = os.path.join(filemanager.get_folder(args.urlid), f'{args.urlid}.glb') 
+    obj_in_Project = os.path.join(filemanager.get_folder(args.urlid), f'{args.urlid}.obj')
+    shutil.copy(glb_path, glb_in_Project)
+    shutil.copy(obj_path, obj_in_Project)
+
+
     if not is_recently_created(glb_path):
         print(f"Error: mesh.glb not found or not recently created in {args.output_dir}")
         exit(1)
