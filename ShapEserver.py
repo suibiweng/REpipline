@@ -13,6 +13,20 @@ from shap_e.util.notebooks import decode_latent_mesh
 import sys
 import tempfile
 import shutil
+from REFileManager import REFileManager
+Real3DPath=""
+
+filemanager = REFileManager();
+
+def Geturlid(urlid):
+    if "@" in urlid:
+        parts = urlid.split('@')
+        print(parts[0])
+        print(parts[1])
+        return parts[0]
+    else:
+        return urlid
+
 
 # Initialize Flask
 app = Flask(__name__)
@@ -103,6 +117,7 @@ def generate(prompt, cfg, steps, fileFormat, filename,urlid):
 
 
 def export_file(input_file, output_file, output_format, urlid):
+    global filemanager
     ms = pymeshlab.MeshSet()
     ms.load_new_mesh(input_file)
 
@@ -131,10 +146,22 @@ def export_file(input_file, output_file, output_format, urlid):
     else:
         print("Invalid output file format. Please choose from ply, fbx, obj, gltf, or glb.")
 
+
+    project_path = filemanager.get_folder(Geturlid(urlid))+f"/{urlid}_ShapE.{output_format}"
+    shutil.copyfile(output_file, project_path)
+    # shutil.move(temp_zip_path, project_path)
+
+
+
     # Ensure the file was saved before zipping
     if os.path.exists(output_file):
         temp_zip_path = tempfile.NamedTemporaryFile(delete=False, suffix=".zip").name
         final_zip_path = f"{urlid}_ShapE.zip"
+        
+
+
+
+
 
         with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             zipf.write(output_file, os.path.basename(output_file))

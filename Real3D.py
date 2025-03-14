@@ -14,6 +14,18 @@ Real3DPath=""
 
 
 filemanager = REFileManager()
+
+
+def Geturlid(urlid):
+    if "@" in urlid:
+        parts = urlid.split('@')
+        print(parts[0])
+        print(parts[1])
+        return parts[0]
+    else:
+        return urlid
+
+
 def run_subprocess(input_file, output_dir):
     global Real3DPath
     # Command and arguments
@@ -151,8 +163,8 @@ if __name__ == "__main__":
     # Step 2: Locate the generated mesh.glb
     glb_path = os.path.join(args.output_dir+'/0/', "mesh.glb")
     obj_path = os.path.join(args.output_dir,'0', "mesh.obj")
-    glb_in_Project = os.path.join(filemanager.get_folder(args.urlid), f'{args.urlid}.glb') 
-    obj_in_Project = os.path.join(filemanager.get_folder(args.urlid), f'{args.urlid}.obj')
+    glb_in_Project = os.path.join(filemanager.get_folder(Geturlid(args.urlid)), f'{args.urlid}.glb') 
+    obj_in_Project = os.path.join(filemanager.get_folder(Geturlid(args.urlid)), f'{args.urlid}.obj')
     shutil.copy(glb_path, glb_in_Project)
     shutil.copy(obj_path, obj_in_Project)
 
