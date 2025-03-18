@@ -14,6 +14,8 @@ import zipfile
 from REFileManager import REFileManager
 import shutil
 import glob
+from segment_anything import sam_model_registry, SamPredictor
+import torch
 
 #from RealityEditorManager import GeneratedModel
 # import ShapEserver
@@ -134,6 +136,7 @@ def download_file(filename):
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
+    global predictor
     # Check if 'file' is in the request
     #     print("No file part in request")
     #     return jsonify({"error": "No file part"}), 400
@@ -254,6 +257,10 @@ def upload_image():
     if file_type == "RGB":
         object_position = (object_x,object_y)
         ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
+        # predictor = load_sam_model("sam_vit_h_4b8939.pth")
+        # Remove background using SAM with transparency
+        # ProccedFile=removebg_with_sam(predictor, file_path, f"{urlid}_rm.png", object_position)
+        
 
 
         server_url = "http://127.0.0.1:8686/process"
@@ -638,22 +645,11 @@ def generate_3d_model(prompt, urid):
         return f"Error generating model: {e.stderr.strip()}"
         
 
-def perform_texture_change(url,yaml_path: str, URLid: str) -> None:
+def perform_texture_change(url, yaml_path: str, URLid: str) -> None:
     global filemanager
     global TexTurePaper_modulePath
-    """
-    Sends a POST request to start the texture change using the given YAML config.
-    If successful, it copies the 'mesh' folder from the experiment to a destination folder
-    and then zips that folder after a delay.
 
-    Args:
-        yaml_path (str): Absolute path to the YAML configuration file.
-        URLid (str): Identifier used to generate folder names.
-        TexTurePaper_modulePath (str): Base module path where experiments are stored.
-        filemanager: An object that provides a method get_folder(id) to get a destination folder.
-    """
     # Send POST request to the Flask server.
-   
     payload = {"yaml_path": yaml_path}
     try:
         response = requests.post(url, json=payload)
@@ -671,6 +667,17 @@ def perform_texture_change(url,yaml_path: str, URLid: str) -> None:
         source_folder = os.path.join(TexTurePaper_modulePath, 'experiments', Geturlid(URLid), 'mesh')
         destination_folder = os.path.join(filemanager.get_folder(Geturlid(URLid)), f'{Geturlid(URLid)}_Texture')
         
+        poll_interval = 5  # seconds between checks
+        print("Waiting for the source folder to be ready...")
+        while True:
+            if os.path.exists(source_folder) and os.path.isdir(source_folder):
+                # Check if the folder is not empty.
+                if os.listdir(source_folder):
+                    print("Source folder is ready.")
+                    break
+            print("Source folder not ready. Waiting...")
+            time.sleep(poll_interval)
+        
         print(f"Copying from {source_folder} to {destination_folder}...")
         shutil.copytree(source_folder, destination_folder)
         print("Copy completed. Zipping folder after delay...")
@@ -682,6 +689,66 @@ def perform_texture_change(url,yaml_path: str, URLid: str) -> None:
 
 
 
+# Load SAM model
+def load_sam_model(checkpoint_path, model_type="vit_h"):
+    # Load SAM model
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    sam_model = sam_model_registry[model_type](checkpoint=checkpoint_path)
+    sam_model.to(device)  # Move model to GPU
+    print(f"Model loaded on: {device}")
+    return SamPredictor(sam_model)
+# Function to display a loading animation
+def loading_animation():
+    animation = "|/-\\"
+    idx = 0
+    start_time = time.time()
+    while True:
+        elapsed_time = int(time.time() - start_time)
+        print(f"\rProcessing... {animation[idx % len(animation)]} {elapsed_time}s elapsed", end="")
+        idx += 1
+        time.sleep(0.1)
+
+# Background removal function using SAM with transparency
+def removebg_with_sam(predictor, input_file, output_file, point_data, threshold=0.5):
+    try:
+        img = cv2.imread(input_file, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            raise ValueError(f"Could not read the input file: {input_file}")
+
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) if img.shape[-1] == 4 else cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        # Set the image **without reloading the model**
+        predictor.set_image(img_rgb)
+
+        input_points = np.array([point_data])
+        input_labels = np.array([1])
+
+        # Predict mask
+        masks, scores, _ = predictor.predict(point_coords=input_points, point_labels=input_labels, multimask_output=True)
+
+        # Select the best mask
+        mask = None
+        for i, score in enumerate(scores):
+            if score >= threshold:
+                mask = masks[i]
+                break
+
+        if mask is None:
+            raise ValueError(f"No masks met the confidence threshold of {threshold}.")
+
+        # Apply transparency
+        img_rgba = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+        mask_uint8 = (mask * 255).astype(np.uint8)
+        img_rgba[mask_uint8 == 0] = (0, 0, 0, 0)
+
+        cv2.imwrite(output_file, img_rgba)
+        print(f"Output saved to: {output_file}")
+
+        return output_file  # ✅ Now returning the processed image path
+
+    except Exception as e:
+        print(f"\nError: {e}")
+        return None  # ✅ Return None if an error occurs
 
 
 
@@ -799,7 +866,7 @@ def flask_server():
 
 def run_server_process():
     subprocess.Popen(["RunServer.bat", "8000"], shell=True)
-    subprocess.Popen(["python","ShapEserver.py","6363" ], shell=True)
+    #subprocess.Popen(["python","ShapEserver.py","6363" ], shell=True)
     # open_the_sd()
     
 ipcam_frame = None     
@@ -955,7 +1022,8 @@ def save_yaml_for_Texturefile(exp_name, text, append_direction, shape_path, seed
             'text': f"{text}"+",{} view"
         },
         'log': {
-            'exp_name': exp_name
+            'exp_name': exp_name,
+            'log_images' : False
         }, 
         'optim': {
             'seed': seed
@@ -1068,6 +1136,8 @@ if __name__ == '__main__':
     TexTurePaper_modulePath=config['TEXTurePaper_ModulePath']
     # TexTurePaper_modulePath="D:\\Desktop\\RealityEditor\\PythonProject\\TEXTurePaper\\"
     run_server_process()
+
+    # predictor = load_sam_model("sam_vit_h_4b8939.pth")
     # initialize()
     # Define arguments
     parser = argparse.ArgumentParser(description="Control which threads to run.")
