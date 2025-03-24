@@ -117,7 +117,20 @@ def Geturlid(urlid):
     else:
         return urlid
 
+@app.route('/uploadMesh', methods=['POST'])
+def upload_mesh():
+    urlid = request.form.get('URLID', 'default') 
+    if 'file' not in request.files:
+        return jsonify({"status": "fail", "reason": "No file uploaded"}), 400
 
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"status": "fail", "reason": "No filename"}), 400
+
+    file.save(os.path.join(UPLOAD_FOLDER, file.filename))
+    print(f"Mesh '{file.filename}' saved successfully!")
+
+    return jsonify({"status": "success", "filename": file.filename}), 200
 
 
 @app.route("/download/<filename>", methods=["GET"])
@@ -136,7 +149,7 @@ def download_file(filename):
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
-    global predictor
+   
     # Check if 'file' is in the request
     #     print("No file part in request")
     #     return jsonify({"error": "No file part"}), 400
@@ -149,6 +162,9 @@ def upload_image():
     debug_draw = request.form.get('debugDraw', 'false').lower() == 'true'
     file_type = request.form.get('type', 'default')  # Retrieve the new 'type' field
     urlid = request.form.get('URLID', 'default') 
+
+    debug_draw=False
+
     if(urlid!="default"):
         folder=filemanager.get_folder(Geturlid(urlid))
         print(urlid)
@@ -160,25 +176,16 @@ def upload_image():
     except ValueError:
         return jsonify({"error": "Invalid objectPosition format. Use (x,y)"}), 400
 
-    # Check if file has a valid filename
-    # if file.filename == '':
-    #     print("No selected file")
-    #     return jsonify({"error": "No selected file"}), 400
 
-    # # Save the uploaded file
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    # if(file_type=="RGB") :
-    #     # capture_ndi_window_with_adjusted_contrast(file_path)
-    #     #capture_ndi_window_with_contour_enhancement(file_path)
-    #     # file.save(file_path)n
-    #     # capture_ndi_window_with_contrast_and_brightness(file_path)
-    #     capture_ndi_window(output_path=file_path)
-    # if(file_type=="RGB_modify") :
-    #     # capture_ndi_window_with_adjusted_contrast(file_path)
-    #     #capture_ndi_window_with_contour_enhancement(file_path)
-    #     file.save(file_path)
-        # capture_ndi_window_with_contrast_and_brightness(file_path)
-        #capture_ndi_window(output_path=file_path)
+    if file_type == "Depth":
+        print(file_type)
+        file.save(file_path)
+ 
+
+
+
+
 
     if file_type == "Mask" or file_type == "RGB" or file_type=="RGB_modify":
         print(file_type)
@@ -190,7 +197,9 @@ def upload_image():
             width, height = image.size  # Get image dimensions
             object_x = width - object_x
             if file_type == "RGB":
-                object_x+=30
+                #passthrough WebTexture adjectment
+                object_x-=100
+                object_y-=195
 
         # Flip image and adjust object_x for left-to-right flip
             if flip_y:
@@ -202,7 +211,7 @@ def upload_image():
             else:
             # Only flip the image vertically
              
-                image = image.transpose(Image.FLIP_TOP_BOTTOM)
+                #image = image.transpose(Image.FLIP_TOP_BOTTOM)
                 print("Image flipped upside down")
 
         # Draw a red dot at the adjusted objectPosition if debugDraw is true
@@ -216,6 +225,10 @@ def upload_image():
                 ],
                 fill=(255, 0, 0, 255)  # Red color
             )
+                    
+
+
+
                 print(f"Red dot drawn at adjusted position ({object_x}, {object_y})")
             print(f"position ({object_x}, {object_y})")
 
@@ -235,6 +248,7 @@ def upload_image():
                 image = Image.open(rgb).convert("RGBA")
                 image = image.transpose(Image.FLIP_TOP_BOTTOM)
                 
+
                 image.save(rgb)
                 time.sleep(10)
             
@@ -245,7 +259,31 @@ def upload_image():
                 object_position = (object_x,object_y)
                 time.sleep(10)
                 print("wait!!!!!")
+                server_url = "http://127.0.0.1:8686/process"
                 #call_Fast3D(f'{urlid}_Modify.png',"./output",urlid)
+                params = {
+                "chunk_size": "49152",
+                "mc_resolution": "256",
+                "foreground_ratio": "0.65",
+                "render": "false",
+                "render_num_views": "30",
+                "no_remove_bg": "false",
+                "zip_filename": f"{urlid}_reconstruct.zip",
+                "output_folder": f"{folder}",
+                "obj_filename": f"{urlid}.obj",
+                "glb_filename": f"{urlid}.glb",
+                "Object_Point": f"{object_x},{object_y}"
+                }
+
+        
+                requesttoReal3D(server_url, f"{urlid}_Modify.png", params)
+
+
+
+
+
+
+
                 call_Real3D(f'{urlid}_Modify.png',f"{folder}",urlid)
             #call_Fast3D(file_path, "./output", urlid)
             # ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
@@ -259,12 +297,14 @@ def upload_image():
         ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
         # predictor = load_sam_model("sam_vit_h_4b8939.pth")
         # Remove background using SAM with transparency
-        # ProccedFile=removebg_with_sam(predictor, file_path, f"{urlid}_rm.png", object_position)
+
+        # path = call_removebg_subprocess( file_path, ProccedFile, object_position,urlid)
+        #ProccedFile=removebg_with_sam(file_path, f"{urlid}_rm.png", object_position)
         
 
 
         server_url = "http://127.0.0.1:8686/process"
-        image_path = file_path
+        image_path = ProccedFile
         params = {
         "chunk_size": "49152",
         "mc_resolution": "256",
@@ -275,10 +315,14 @@ def upload_image():
         "zip_filename": f"{urlid}_reconstruct.zip",
         "output_folder": f"{folder}",
         "obj_filename": f"{urlid}.obj",
-        "glb_filename": f"{urlid}.glb"
+        "glb_filename": f"{urlid}.glb",
+        "Object_Point": f"{object_x},{object_y}"
         }
-        requesttoReal3D(server_url, image_path, params)
 
+        # if(path!=None):
+        #   requesttoReal3D(server_url, image_path, params)
+        # else:
+        #     print("Error in removebg")
 
 
         #call_Fast3D(file_path, "./output", urlid)
@@ -709,47 +753,91 @@ def loading_animation():
         time.sleep(0.1)
 
 # Background removal function using SAM with transparency
-def removebg_with_sam(predictor, input_file, output_file, point_data, threshold=0.5):
+
+def removebg_with_sam(input_file, output_file, point_data, threshold=0.5):
+    """
+    Loads the SAM model, performs segmentation using the given point,
+    saves the output image (with background removed) and then releases memory.
+    
+    Parameters:
+      - input_file: Path to the input image.
+      - output_file: Path where the output image will be saved.
+      - point_data: A tuple or list representing a single point (e.g. [x, y]).
+      - threshold: Confidence threshold for selecting a mask.
+      
+    Returns the output_file path if successful, otherwise None.
+    """
     try:
+        # Load predictor every time this function is called.
+        predictor = load_sam_model("sam_vit_h_4b8939.pth")
+        
+        # Read the input image
         img = cv2.imread(input_file, cv2.IMREAD_UNCHANGED)
         if img is None:
             raise ValueError(f"Could not read the input file: {input_file}")
-
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) if img.shape[-1] == 4 else cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-        # Set the image **without reloading the model**
+        
+        # Convert image to RGB for SAM (SAM expects RGB input)
+        if img.shape[-1] == 4:
+            # If already 4 channels, assume BGRA; convert to BGR then to RGB.
+            img_bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+            img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        else:
+            # For a 3-channel image, convert from BGR to RGB.
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # Set the image for the predictor.
         predictor.set_image(img_rgb)
-
+        
+        # Prepare point and label data. SAM expects point coordinates in [x, y] order.
         input_points = np.array([point_data])
         input_labels = np.array([1])
-
-        # Predict mask
-        masks, scores, _ = predictor.predict(point_coords=input_points, point_labels=input_labels, multimask_output=True)
-
-        # Select the best mask
+        
+        # Get segmentation masks.
+        masks, scores, _ = predictor.predict(
+            point_coords=input_points, 
+            point_labels=input_labels, 
+            multimask_output=True
+        )
+        
+        # Select a mask that meets the confidence threshold.
         mask = None
         for i, score in enumerate(scores):
             if score >= threshold:
                 mask = masks[i]
                 break
-
+        
         if mask is None:
             raise ValueError(f"No masks met the confidence threshold of {threshold}.")
-
-        # Apply transparency
-        img_rgba = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+        
+        # Prepare an RGBA image for output.
+        # If the original image is 3-channel, convert to BGRA.
+        if img.shape[-1] == 3:
+            img_rgba = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+        elif img.shape[-1] == 4:
+            # If already 4-channel, copy it.
+            img_rgba = img.copy()
+        else:
+            raise ValueError("Unsupported number of channels in input image.")
+        
+        # Create a uint8 mask and apply it: set pixels to transparent (0,0,0,0) where mask == 0.
         mask_uint8 = (mask * 255).astype(np.uint8)
         img_rgba[mask_uint8 == 0] = (0, 0, 0, 0)
-
-        cv2.imwrite(output_file, img_rgba)
+        
+        # Write the output image.
+        if not cv2.imwrite(output_file, img_rgba):
+            raise IOError(f"Failed to write image to {output_file}")
         print(f"Output saved to: {output_file}")
-
-        return output_file  # ✅ Now returning the processed image path
+        
+        # Release predictor memory.
+        predictor.set_image(None)
+        del predictor
+        torch.cuda.empty_cache()
+        
+        return output_file
 
     except Exception as e:
         print(f"\nError: {e}")
-        return None  # ✅ Return None if an error occurs
-
+        return None
 
 
 def call_removebg_subprocess( input_file, output_file, point_data,urlid):
@@ -784,11 +872,12 @@ def call_removebg_subprocess( input_file, output_file, point_data,urlid):
         # Handle subprocess results
         if result.returncode == 0:
             print("Subprocess completed successfully!")
-            call_Real3D(output_file,"./output",urlid)
+            return output_file
             print(result.stdout)
         else:
             print("Subprocess failed!_F3D")
             print(result.stderr)
+            return None
 
     except Exception as e:
         print(f"Error calling subprocess: {e}")
@@ -1102,7 +1191,7 @@ def RunTheTRXURE (YamalPath,URLid):
     return True
 
 
-def zip_files_with_delay(directory, output_zip, delay=3):
+def zip_files_with_delay(directory, output_zip, delay=10):
     time.sleep(delay)
     
     with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
