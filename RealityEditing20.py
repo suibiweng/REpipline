@@ -142,7 +142,52 @@ def download_file(filename):
         print("File not found!")  # Log if the file does not exist
         return jsonify({"error": "File not found"}), 404
 
-    return send_from_directory(directory_path, filename, as_attachment=True)    
+    return send_from_directory(directory_path, filename, as_attachment=True)
+
+@app.route('/EraseMask', methods=['POST'])
+def EraseMaskCreate():
+    global filemanager
+    RGBfile = request.files['file']
+    object_position = request.form.get('objectPosition', '(0,0)')
+    urlid = request.form.get('URLID', 'default')
+    print(urlid)
+    folder=filemanager.get_folder(Geturlid(urlid))
+    print(folder)
+
+    object_x, object_y = map(int, object_position.strip("()").split(","))
+    # object_x-=100
+    # object_y-=195
+    object_position = (object_x,object_y)
+
+    mask = os.path.join(UPLOAD_FOLDER, urlid+"_mask.png")
+    rgb = os.path.join(UPLOAD_FOLDER, urlid+"_eraseRGB.png")
+    ProccedFile= os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
+    RGBfile.save(rgb)
+    call_removebg_subprocess(rgb, ProccedFile, object_position,mask,urlid)
+    print(mask)
+    print(rgb)
+    call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_EraseMask', "img2img", "Remove it", input_image=rgb, mask_image=mask)
+
+    time.sleep(10)
+
+    stdout, stderr = run_depth_export_with_popen(
+        r"H:\EditingReality\muggled_dpt\run_depth_export.py",
+        f"{urlid}_EraseMask.png",
+        device="cuda",
+        plane_removal_factor=0.5,
+        thresh_min=0.1,
+        use_float32=True,
+        output_path=f'{urlid}_Remove_depth.png'
+    )
+    
+    print("Standard Output:")
+    print(stdout)
+    print("Standard Error:")
+    print(stderr)
+
+    return jsonify({"message": ""}), 200
+
+
     
         
 
@@ -238,7 +283,7 @@ def upload_image():
             if(file_type == "Mask"):
                 print(prompt)
                
-                offset_image(file_path)
+                # offset_image(file_path)
  
                 print("shiftMask")
                 
@@ -246,7 +291,7 @@ def upload_image():
                 rgb = os.path.join(UPLOAD_FOLDER, urlid+"_Modify.png")
                 
                 image = Image.open(rgb).convert("RGBA")
-                image = image.transpose(Image.FLIP_TOP_BOTTOM)
+                # image = image.transpose(Image.FLIP_TOP_BOTTOM)
                 
 
                 image.save(rgb)
@@ -276,7 +321,7 @@ def upload_image():
                 }
 
         
-                requesttoReal3D(server_url, f"{urlid}_Modify.png", params)
+                # requesttoReal3D(server_url, f"{urlid}_Modify.png", params)
 
 
 
@@ -284,7 +329,7 @@ def upload_image():
 
 
 
-                call_Real3D(f'{urlid}_Modify.png',f"{folder}",urlid)
+                #call_Real3D(f'{urlid}_Modify.png',f"{folder}",urlid)
             #call_Fast3D(file_path, "./output", urlid)
             # ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
             # call_removebg_subprocess( f'{urlid}_Modify.png', ProccedFile, object_position,urlid)
@@ -295,16 +340,17 @@ def upload_image():
     if file_type == "RGB":
         object_position = (object_x,object_y)
         ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
+        MaskFile = os.path.join(UPLOAD_FOLDER,urlid+"_mask.png")
         # predictor = load_sam_model("sam_vit_h_4b8939.pth")
         # Remove background using SAM with transparency
 
-        # path = call_removebg_subprocess( file_path, ProccedFile, object_position,urlid)
-        #ProccedFile=removebg_with_sam(file_path, f"{urlid}_rm.png", object_position)
+        path = call_removebg_subprocess(file_path, ProccedFile, object_position,MaskFile,urlid)
+        # ProccedFile=removebg_with_sam(file_path, f"{urlid}_rm.png", object_position)
         
 
 
         server_url = "http://127.0.0.1:8686/process"
-        image_path = ProccedFile
+        image_path = path
         params = {
         "chunk_size": "49152",
         "mc_resolution": "256",
@@ -345,31 +391,95 @@ def upload_image():
         "objectPosition": (object_x, object_y),  # Return the modified coordinates
         "debugDraw": debug_draw
     }), 200
-def offset_image(image_path, offset_x=45, fill_color=(0, 0, 0)):
+
+
+def run_depth_export_with_popen(script_path, image_path, device="cuda",
+                                plane_removal_factor=0.5, thresh_min=0.1,
+                                use_float32=True, output_path=None, cwd=None):
     """
-    Offsets an image to the right by a given number of pixels and replaces the original image.
+    Calls the run_depth_export.py script using subprocess.Popen with the provided parameters.
+    
+    Parameters:
+        script_path (str): Full or relative path to the run_depth_export.py script.
+        image_path (str): Path to the input image. If relative, it should be relative to cwd.
+        device (str): Device to use (e.g., 'cpu', 'cuda', 'mps'). Default is 'cuda'.
+        plane_removal_factor (float): Factor for plane-of-best-fit removal.
+        thresh_min (float): Minimum threshold for depth normalization.
+        use_float32 (bool): Whether to use 32-bit floating point precision.
+        output_path (str): Optional; if provided, specifies the output file path (relative to cwd).
+        cwd (str): Optional; working directory to run the subprocess in. If None, uses the caller's cwd.
+        
+    Returns:
+        tuple: (stdout, stderr) captured from the script.
+    """
+    # Build the command list.
+    cmd = [
+        "python",
+        script_path,
+        "-i", image_path,
+        "-m",  r"H:\EditingReality\muggled_dpt\model_weights\dpt_beit_large_512.pt",
+        "-d", device,
+        "--plane_removal_factor", str(plane_removal_factor),
+        "--thresh_min", str(thresh_min)
+    ]
+    
+    if use_float32:
+        cmd.append("-f32")
+        
+    if output_path:
+        cmd.extend(["--output_path", output_path])
+    
+    # Use the provided cwd or default to the current working directory.
+    if cwd is None:
+        cwd = os.getcwd()
+    
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL,
+        text=True,
+        cwd=cwd
+    )
+    
+    try:
+        stdout, stderr = process.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        stdout, stderr = process.communicate()
+        print("Process timed out.")
+    
+    return stdout, stderr
+
+
+
+
+def offset_image(image_path, offset_x=45, offset_y=-200, fill_color=(0, 0, 0)):
+    """
+    Offsets an image to the right and down by given numbers of pixels, replacing the original image.
 
     :param image_path: Path to the input image.
     :param offset_x: Number of pixels to shift the image to the right.
-    :param fill_color: Color to fill the left gap (default is black).
+    :param offset_y: Number of pixels to shift the image downward.
+    :param fill_color: Color to fill the gaps (default is black).
     """
     # Load image
     image = cv2.imread(image_path)
-
     if image is None:
         raise ValueError("Image not found or invalid image path.")
 
     # Get image dimensions
     height, width, channels = image.shape
 
-    # Create a new blank image with the same shape and fill with the specified color
+    # Create a new blank image with the same dimensions and fill with the specified color
     offset_img = np.full((height, width, channels), fill_color, dtype=np.uint8)
 
-    # Offset image by shifting pixels
-    offset_img[:, offset_x:] = image[:, :-offset_x]
+    # Apply both horizontal and vertical offset
+    offset_img[offset_y:, offset_x:] = image[:height - offset_y, :width - offset_x]
 
     # Save the modified image, replacing the original one
     cv2.imwrite(image_path, offset_img)
+
 
 def requesttoReal3D(server_url: str, image_path: str, params: dict) -> str:
     """
@@ -606,7 +716,7 @@ def call_Real3D(input_file, output_dir, zipfile_name):
         
         
 def call_SDimg(urlid,server_url, output_file_name, mode, prompt, input_image=None, mask_image=None, 
-                          seed=1, steps=20, width=512, height=512, cfg_scale=7.0, denoising_strength=0.5):
+                          seed=1, steps=20, width=512, height=512, cfg_scale=7.0, denoising_strength=0.5,inpainting_mode=1):
     """
     Calls the SDimg.py script as a subprocess with the specified arguments.
 
@@ -636,7 +746,8 @@ def call_SDimg(urlid,server_url, output_file_name, mode, prompt, input_image=Non
             "--steps", str(steps),
             "--width", str(width),
             "--height", str(height),
-            "--cfg_scale", str(cfg_scale)
+            "--cfg_scale", str(cfg_scale),
+            "--inpainting_mode", str(inpainting_mode)
         ]
 
         if mode == "img2img":
@@ -840,7 +951,7 @@ def removebg_with_sam(input_file, output_file, point_data, threshold=0.5):
         return None
 
 
-def call_removebg_subprocess( input_file, output_file, point_data,urlid):
+def call_removebg_subprocess( input_file, output_file, point_data,mask_file,urlid):
     """
     Calls the removebg script as a subprocess.
 
@@ -862,6 +973,7 @@ def call_removebg_subprocess( input_file, output_file, point_data,urlid):
                 "--input_file", input_file,
                 "--output_file", output_file,
                 "--point_data", point_data_str,
+                "--output_mask", mask_file,
                 "--checkpoint_path","sam_vit_h_4b8939.pth",
                 "--threshold",str(0.2)
             ],

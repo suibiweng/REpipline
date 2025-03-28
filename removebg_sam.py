@@ -26,7 +26,7 @@ def loading_animation():
         time.sleep(0.1)
 
 # Background removal function using SAM with transparency
-def removebg_with_sam(input_file, output_file, point_data, checkpoint_path, threshold=0.5):
+def removebg_with_sam(input_file, output_file, point_data, checkpoint_path,output_mask, threshold=0.5):
     try:
         # Initialize SAM predictor
         predictor = load_sam_model(checkpoint_path)
@@ -75,6 +75,13 @@ def removebg_with_sam(input_file, output_file, point_data, checkpoint_path, thre
         # Save the output image
         cv2.imwrite(output_file, img_rgba)
 
+        bw_mask = (mask.astype(np.uint8)) * 255
+
+# Save the binary mask as a PNG
+        cv2.imwrite(output_mask, bw_mask)
+
+        
+
         # Stop the loading animation
         print("\rProcessing completed in {:.2f}s!".format(time.time() - 0))
 
@@ -89,6 +96,7 @@ if __name__ == "__main__":
     parser.add_argument("--point_data", type=str, required=True, help="Point data for segmentation (e.g., '150,300').")
     parser.add_argument("--checkpoint_path", type=str, required=True, help="Path to the SAM model checkpoint.")
     parser.add_argument("--threshold", type=float, required=False, default=0.5, help="Confidence threshold for mask selection (default: 0.5).")
+    parser.add_argument("--output_mask", type=str, required=False, default="mask_output.png", help="Path to save the output mask.")
 
     args = parser.parse_args()
 
@@ -96,5 +104,5 @@ if __name__ == "__main__":
     point_data = [int(coord) for coord in args.point_data.split(",")]
 
     # Call the background removal function, including the threshold
-    removebg_with_sam(args.input_file, args.output_file, point_data, args.checkpoint_path, threshold=args.threshold)
+    removebg_with_sam(args.input_file, args.output_file, point_data, args.checkpoint_path,args.output_mask, threshold=args.threshold)
 
