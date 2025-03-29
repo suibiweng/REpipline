@@ -156,7 +156,7 @@ def EraseMaskCreate():
 
     object_x, object_y = map(int, object_position.strip("()").split(","))
     # object_x-=100
-    # object_y-=195
+    object_y-=150
     object_position = (object_x,object_y)
 
     mask = os.path.join(UPLOAD_FOLDER, urlid+"_mask.png")
