@@ -32,96 +32,162 @@ def call_api(server_url, api_endpoint, **payload):
     return json.loads(response.read().decode('utf-8'))
 
 
-def call_txt2img_api(server_url, prompt, output_file_name, **kwargs):
-    payload = {
-        "prompt": prompt,
-        "negative_prompt": kwargs.get("negative_prompt", ""),
-        "seed": kwargs.get("seed", 1),
-        "steps": kwargs.get("steps", 20),
-        "width": kwargs.get("width", 512),
-        "height": kwargs.get("height", 512),
-        "cfg_scale": kwargs.get("cfg_scale", 7),
-        "sampler_name": kwargs.get("sampler_name", "DPM++ 2M"),
-        "n_iter": kwargs.get("n_iter", 1),
-        "batch_size": kwargs.get("batch_size", 1),
-    }
-    response = call_api(server_url, 'sdapi/v1/txt2img', **payload)
-    for index, image in enumerate(response.get('images')):
-        save_path = f"{output_file_name}-{timestamp()}-{index}.png"
-        decode_and_save_base64(image, save_path)
-
-
 def call_img2img_api(server_url, input_image, prompt, output_file_name, mask_image=None, **kwargs):
-    init_images = [encode_file_to_base64(input_image)]
-    payload = {
-        "prompt": prompt,
-        "seed": kwargs.get("seed", 1),
-        "steps": kwargs.get("steps", 20),
-        "width": kwargs.get("width", 512),
-        "height": kwargs.get("height", 512),
-        "denoising_strength": kwargs.get("denoising_strength", 0.5),
-        "n_iter": kwargs.get("n_iter", 1),
-        "init_images": init_images,
-        "batch_size": len(init_images),
-        "resize_mode": 0
+    # Encode the input image as base64.
+    init_image = encode_file_to_base64(input_image)
+    
+
+    if mask_image is None:
+        # Use the full payload as given
+        payload = {
+            "alwayson_scripts": {
+                "API payload": {"args": []},
+                "Comments": {"args": []},
+                "Extra options": {"args": []},
+                "Hypertile": {"args": []},
+                "Refiner": {"args": [False, "", 0.8]},
+                "Sampler": {"args": [20, "DPM++ 2M", "Automatic"]},
+                "Seed": {"args": [-1, False, -1, 0, 0, 0]},
+                "Soft Inpainting": {"args": [False, 1, 0.5, 4, 0, 0.5, 2]}
+            },
+            "batch_size": 1,
+            "cfg_scale": 7,
+            "comments": {},
+            "denoising_strength": 0.75,
+            "disable_extra_networks": False,
+            "do_not_save_grid": False,
+            "do_not_save_samples": False,
+            "height": 960,
+            "image_cfg_scale": 1.5,
+            "init_images": [init_image],
+            "initial_noise_multiplier": 1.0,
+            "inpaint_full_res": 0,
+            "inpaint_full_res_padding": 32,
+            "inpainting_fill": 1,
+            "inpainting_mask_invert": 0,
+            "mask_blur": 4,
+            "mask_blur_x": 4,
+            "mask_blur_y": 4,
+            "mask_round": True,
+            "n_iter": 1,
+            "negative_prompt": "",
+            "override_settings": {},
+            "override_settings_restore_afterwards": True,
+            "prompt": prompt,
+            "resize_mode": 0,
+            "restore_faces": False,
+            "s_churn": 0.0,
+            "s_min_uncond": 0.0,
+            "s_noise": 1.0,
+            "s_tmax": None,
+            "s_tmin": 0.0,
+            "sampler_name": "DPM++ 2M",
+            "scheduler": "Automatic",
+            "script_args": [],
+            "script_name": None,
+            "seed": -1,
+            "seed_enable_extras": True,
+            "seed_resize_from_h": -1,
+            "seed_resize_from_w": -1,
+            "steps": kwargs.get("steps", 20),
+            "styles": [],
+            "subseed": -1,
+            "subseed_strength": 0,
+            "tiling": False,
+            "width": 1280
+        }
+    else:
+        payload = {
+    "alwayson_scripts": {
+        "API payload": {"args": []},
+        "Comments": {"args": []},
+        "Extra options": {"args": []},
+        "Hypertile": {"args": []},
+        "Refiner": {"args": [False, "", 0.8]},
+        "Sampler": {"args": [20, "DPM++ 2M", "Automatic"]},
+        "Seed": {"args": [-1, False, -1, 0, 0, 0]},
+        "Soft Inpainting": {"args": [False, 1, 0.5, 4, 0, 0.5, 2]}
+    },
+    "batch_size": 1,
+    "cfg_scale": 10,
+    "comments": {},
+    "denoising_strength": 0.9,  # Low to preserve Ironman face
+    "disable_extra_networks": False,
+    "do_not_save_grid": False,
+    "do_not_save_samples": False,
+    "height": 960,
+    "image_cfg_scale": 1.5,
+    "init_images": [init_image],  # ← base64-encoded image (Ironman face + hat stroke)
+    "mask": encode_file_to_base64(mask_image),  # ← base64-encoded binary mask (white = hat area only)
+    "initial_noise_multiplier": 1.0,
+    "inpaint_full_res": 1,
+    "inpaint_full_res_padding": 32,
+    "inpainting_fill": 1,
+    "inpainting_mask_invert": 0,
+    "mask_blur": 2,
+    "mask_blur_x": 4,
+    "mask_blur_y": 4,
+    "mask_round": False,
+    "n_iter": 1,
+    "negative_prompt": "",
+    "override_settings": {},
+    "override_settings_restore_afterwards": True,
+    "prompt": prompt,  # e.g., "a cartoon-style top hat"
+    "resize_mode": 0,
+    "restore_faces": False,
+    "s_churn": 0.0,
+    "s_min_uncond": 0.0,
+    "s_noise": 1.0,
+    "s_tmax": None,
+    "s_tmin": 0.0,
+    "sampler_name": "DPM++ 2M",
+    "scheduler": "Automatic",
+    "script_args": [],
+    "script_name": None,
+    "seed": -1,
+    "seed_enable_extras": True,
+    "seed_resize_from_h": -1,
+    "seed_resize_from_w": -1,
+    "steps": 50,
+    "styles": [],
+    "subseed": -1,
+    "subseed_strength": 0,
+    "tiling": False,
+    "width": 1280
     }
-    # if mask_image:
-    #     payload["mask"] = encode_file_to_base64(mask_image)
-      
-    #     payload["cfg_scale"] = 1.5
-    #     payload["denoising_strength"] = 0.75
-        
-        
-        
-    #     payload["mask_blur_x"] = 4
-    #     payload["mask_blur_y"] = 4
-    #     # payload["mask_blur_y"]
-    #     payload["mask_blur"] = 4
-        
-    #     payload["initial_noise_multiplier"]=1
-    #     # payload ["mask_transparency"]=0
-    #     payload["inpainting_fill"] = 1
-    #     # payload["inpaint_full_res"]= 0
-    #     payload["inpaint_full_res_padding"]= 32
-    #     # payload["inpainting_mask_invert"]= 0
-
-    if mask_image:
-        payload["mask"] = encode_file_to_base64(mask_image)
-        payload["cfg_scale"] = 1.5
-        payload["denoising_strength"] = 0.75
-        payload["mask_blur_x"] = 4
-        payload["mask_blur_y"] = 4
-        payload["mask_blur"] = 4
-        payload["mask_round"] = True
-        payload["inpainting_mask_invert"] = 0
-        payload["inpaint_full_res"] = 0
-        payload["inpaint_full_res_padding"] = 32
-        payload["initial_noise_multiplier"] = 1
-        payload["inpainting_fill"] = kwargs.get("inpainting_mode", 0)
-        
-
-        
 
 
 
 
 
-
-#   "mask_blur_x": 4,
-#   "mask_blur_y": 4,
-#   "mask_blur": 0,
-#   "mask_round": true,
-#   "inpainting_fill": 0,
-#   "inpaint_full_res": true,
-#   "inpaint_full_res_padding": 0,
-#   "inpainting_mask_invert": 0,
-
-
-
-
-
+        # payload = {
+        #     "prompt": prompt,
+        #     "seed": kwargs.get("seed", 1),
+        #     "steps": kwargs.get("steps", 20),
+        #     "width": kwargs.get("width", 512),
+        #     "height": kwargs.get("height", 512),
+        #     "denoising_strength": kwargs.get("denoising_strength", 0.5),
+        #     "n_iter": kwargs.get("n_iter", 1),
+        #     "init_images": [init_image],
+        #     "batch_size": 1,
+        #     "resize_mode": 0,
+        #     "mask": encode_file_to_base64(mask_image),
+        #     "cfg_scale": 1.5,
+        #     "denoising_strength": 0.75,
+        #     "mask_blur_x": 4,
+        #     "mask_blur_y": 4,
+        #     "mask_blur": 4,
+        #     "mask_round": True,
+        #     "inpainting_mask_invert": 0,
+        #     "inpaint_full_res": 0,
+        #     "inpaint_full_res_padding": 32,
+        #     "initial_noise_multiplier": 1,
+        #     "inpainting_fill": 1
+        # }
+    
+    # Call the API with the constructed payload.
     response = call_api(server_url, 'sdapi/v1/img2img', **payload)
-    for index, image in enumerate(response.get('images')):
+    for index, image in enumerate(response.get('images', [])):
         save_path = f"{output_file_name}.png"
         decode_and_save_base64(image, save_path)
 
@@ -130,7 +196,7 @@ def process_request(server_url, output_file_name, mode, prompt=None, input_image
     if mode == 'txt2img':
         if not prompt:
             raise ValueError("The 'prompt' argument is required for txt2img mode.")
-        call_txt2img_api(server_url, prompt, output_file_name, **kwargs)
+        # call_txt2img_api(server_url, prompt, output_file_name, **kwargs)
     elif mode == 'img2img':
         if not input_image or not prompt:
             raise ValueError("Both 'input_image' and 'prompt' are required for img2img mode.")

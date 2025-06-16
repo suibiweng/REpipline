@@ -21,6 +21,26 @@ import torch
 # import ShapEserver
 import argparse
 
+import datetime
+import uuid
+
+class IDGenerator:
+    @staticmethod
+    def generate_id():
+        # Get current date and time
+        now = datetime.datetime.now()
+
+        # Format the timestamp: yyyyMMddHHmmss
+        timestamp = now.strftime("%Y%m%d%H%M%S")
+
+        # Append a shortened unique identifier (8 characters from UUID)
+        unique_id = uuid.uuid4().hex[:8]
+
+        return f"{timestamp}{unique_id}"
+
+
+
+
 ndi_frame = None
 app = Flask(__name__)
 
@@ -34,6 +54,105 @@ os.makedirs(OBJECTs_FOLDER, exist_ok=True)
 filemanager = REFileManager(base_directory=OBJECTs_FOLDER)
 
 open_ai_key=""
+
+
+
+@app.route('/StoryGenerator', methods=['POST'])
+def StoryGenerator():
+    StoryText = request.form.get('Story', '')
+    urlid = request.form.get('URLID', 'default')
+    output_file = f"{urlid}_DreamTeller.json"
+    type = request.form.get('type', '')  # Retrieve the new 'type' field
+
+    try:
+        print("Story Time!!!")
+        # 1. Generate objects using OpenAI script
+        if(type=="ChatGPT"):
+            call_OpenAI_script(StoryText, output_file, "StoryGenerator", urlid)
+           
+        elif(type=="Text23D"):
+            call_3DTextToPosition_script(StoryText, output_file)
+     
+        # 2. Load and assign IDs
+        with open(output_file, 'r') as f:
+            object_list = json.load(f)
+
+        if not isinstance(object_list, list):
+            object_list = [object_list]
+
+        for obj in object_list:
+            obj["id"] = IDGenerator.generate_id()
+
+        with open(output_file, 'w') as f:
+            json.dump(object_list, f, indent=4)
+
+        # 3. Trigger Shap-E generation
+        resp = requests.post("http://localhost:6363/generateListofObject", json={"URID": urlid})
+        if resp.status_code != 200:
+            return jsonify({"error": "Shap-E generation failed", "details": resp.json()}), 500
+
+        return jsonify({"objects": resp.json().get("objects", [])}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+
+
+
+@app.route('/DrawToModel', methods=['POST'])
+def DrawCreate():
+    global filemanager
+    RGBfile = request.files['file']
+    prompt = request.form.get('prompt', 'an object')
+    urlid = request.form.get('URLID', 'default')
+    object_position = request.form.get('objectPosition', '(0,0)')
+
+    print("DrawTo3D!!!")
+
+
+    DtD= os.path.join(UPLOAD_FOLDER,urlid+"_D23D.png")
+    RGBfile.save(DtD)
+
+    print(urlid)
+    folder=filemanager.get_folder(Geturlid(urlid))
+    print(folder)
+
+    object_x, object_y = map(int, object_position.strip("()").split(","))
+    # object_x-=100
+    object_y-=150
+    object_position = (object_x,object_y)
+
+
+    call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_3DDrawing', "img2img", prompt, input_image=DtD)
+
+    time.sleep(10)
+
+
+
+
+    print("wait!!!!!")
+    server_url = "http://127.0.0.1:8686/process"
+                #call_Fast3D(f'{urlid}_Modify.png',"./output",urlid)
+    params = {
+                "chunk_size": "49152",
+                "mc_resolution": "256",
+                "foreground_ratio": "0.65",
+                "render": "false",
+                "render_num_views": "30",
+                "no_remove_bg": "false",
+                "zip_filename": f"{urlid}_Drawing.zip",
+                "output_folder": f"{folder}",
+                "obj_filename": f"{urlid}.obj",
+                "glb_filename": f"{urlid}.glb",
+                "Object_Point": f"{object_x},{object_y}"
+                }
+
+        
+    requesttoReal3D(server_url, f'{urlid}_3DDrawing.png', params)
+    return jsonify({"message": ""}), 200
 
 @app.route('/command', methods=['POST'])
 def command():
@@ -73,7 +192,10 @@ def command():
     if command == "DynamicCoding":
         print("p2play")
         print(prompt)
+        
         print(folder)
+
+        print(urlid)
         
         call_OpenAI_script(prompt, f"{folder}/{urlid}_DynamicCoding.json",command+"2",urlid)
         return jsonify({"message": "DynamicCodin"}), 200
@@ -83,7 +205,12 @@ def command():
          if(version!=0):
             priviousModelName=get_latest_obj_filename(filemanager.get_folder(Geturlid(urlid)))
 
-         YamalPath=save_yaml_for_Texturefile(Geturlid(urlid), prompt, "append", f"{folder}/{priviousModelName}", 1, f"./textures/{Geturlid(urlid)}.yaml")
+         if(urlid=="20250406175338f3a773eeMovie"):
+        
+            YamalPath="H:\\EditingReality\\REpipline\\textures\\20250406175338f3a773eeMovie.yaml"
+         
+         else:
+           YamalPath=save_yaml_for_Texturefile(Geturlid(urlid), prompt, "append", f"{folder}/{priviousModelName}", 1, f"./textures/{Geturlid(urlid)}.yaml")
         # RunTheTRXURE (YamalPath,urlid)
          url = "http://localhost:7788/start"
          perform_texture_change(url,YamalPath, urlid)
@@ -155,15 +282,37 @@ def EraseMaskCreate():
     print(folder)
 
     object_x, object_y = map(int, object_position.strip("()").split(","))
-    # object_x-=100
-    object_y-=150
+    object_x+=50
+    object_y-=170
     object_position = (object_x,object_y)
 
+
+
+    debug = os.path.join(UPLOAD_FOLDER, urlid+"_debug.png")
     mask = os.path.join(UPLOAD_FOLDER, urlid+"_mask.png")
     rgb = os.path.join(UPLOAD_FOLDER, urlid+"_eraseRGB.png")
     ProccedFile= os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
     RGBfile.save(rgb)
-    call_removebg_subprocess(rgb, ProccedFile, object_position,mask,urlid)
+
+    image = Image.open(rgb).convert("RGBA")
+
+
+    draw = ImageDraw.Draw(image)
+    dot_radius = 5  # Radius of the red dot
+    draw.ellipse(
+                [
+                    (object_x - dot_radius, object_y - dot_radius),
+                    (object_x + dot_radius, object_y + dot_radius)
+                ],
+                fill=(255, 0, 0, 255) 
+     ) # Red color
+    image.save(debug)
+
+
+
+
+
+    call_removebg_subprocess(rgb, ProccedFile, object_position,mask,urlid,0.5)
     print(mask)
     print(rgb)
     call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_EraseMask', "img2img", "Remove it", input_image=rgb, mask_image=mask)
@@ -188,6 +337,10 @@ def EraseMaskCreate():
     return jsonify({"message": ""}), 200
 
 
+
+
+
+
     
         
 
@@ -200,6 +353,8 @@ def upload_image():
     #     return jsonify({"error": "No file part"}), 400
 
     file = request.files['file']
+
+    msk=request.files.get('mask',None)
     prompt = request.form.get('prompt', 'No prompt provided')
     flip_y = request.form.get('flipY', 'false').lower() == 'true'
     x_offset = int(request.form.get('xOffset', '0'))
@@ -208,7 +363,7 @@ def upload_image():
     file_type = request.form.get('type', 'default')  # Retrieve the new 'type' field
     urlid = request.form.get('URLID', 'default') 
 
-    debug_draw=False
+    
 
     if(urlid!="default"):
         folder=filemanager.get_folder(Geturlid(urlid))
@@ -226,6 +381,14 @@ def upload_image():
     if file_type == "Depth":
         print(file_type)
         file.save(file_path)
+
+
+    debug = os.path.join(UPLOAD_FOLDER, urlid+"_debug.png")
+
+
+    if(msk!= None):
+      SegMask = os.path.join(UPLOAD_FOLDER, urlid+"_drawmask.png")
+      msk.save(SegMask)
  
 
 
@@ -239,12 +402,14 @@ def upload_image():
     # Perform the flips, x-offset shift, and debug drawing
         try:
             image = Image.open(file_path).convert("RGBA")
+            debug_image = image.copy()
             width, height = image.size  # Get image dimensions
             object_x = width - object_x
-            if file_type == "RGB":
+            if file_type == "RGB" or file_type == "RGB_modify" or file_type == "Mask":
                 #passthrough WebTexture adjectment
-                object_x-=100
-                object_y-=195
+                object_x+=145-45
+                object_y-=320
+                print("offsetPoint")
 
         # Flip image and adjust object_x for left-to-right flip
             if flip_y:
@@ -260,28 +425,45 @@ def upload_image():
                 print("Image flipped upside down")
 
         # Draw a red dot at the adjusted objectPosition if debugDraw is true
-            if debug_draw:
-                draw = ImageDraw.Draw(image)
-                dot_radius = 5  # Radius of the red dot
-                draw.ellipse(
+           
+            draw = ImageDraw.Draw(debug_image)
+            dot_radius = 5  # Radius of the red dot
+            draw.ellipse(
                 [
                     (object_x - dot_radius, object_y - dot_radius),
                     (object_x + dot_radius, object_y + dot_radius)
                 ],
                 fill=(255, 0, 0, 255)  # Red color
             )
+
+            debug_image.save(debug)  # Save the debug image with the red dot
                     
 
 
 
-                print(f"Red dot drawn at adjusted position ({object_x}, {object_y})")
+            print(f"Red dot drawn at adjusted position ({object_x}, {object_y})")
             print(f"position ({object_x}, {object_y})")
-
         # Save the modified image back to the same file path
             image.save(file_path)
+
+            # if (file_type == "RGB_modify"):
+            # #     # image.save(modified_file_path)
+            #     ProccedFile =  modified_file_path
+            #     MaskFile = os.path.join(UPLOAD_FOLDER,urlid+"_mask.png")
+            #     path = call_removebg_subprocess(file_path, ProccedFile, object_position,MaskFile,urlid)
+            #     print(f"Modified image saved as 2 {modified_file_path}")    print("RGB_modify!!!!!!!!")
+            #     object_position = (object_x,object_y)
+            #     # Save the modified image with a different name
+            #     modified_file_path = os.path.join(UPLOAD_FOLDER, f"{urlid}_Modify.png")
+
+            
+            
+
+
             
             if(file_type == "Mask"):
                 print(prompt)
+                object_position = (object_x,object_y)
                
                 # offset_image(file_path)
  
@@ -289,19 +471,54 @@ def upload_image():
                 
           
                 rgb = os.path.join(UPLOAD_FOLDER, urlid+"_Modify.png")
+
+
+
+    
+                MaskFile = os.path.join(UPLOAD_FOLDER,urlid+"_Mask.png")
+                ProccedFile= os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
+                # path = call_removebg_subprocess(rgb, ProccedFile, object_position,MaskFile,urlid)
+
+                time.sleep(20)
+
+
+                overlay_mask_on_image(rgb, file_path, rgb)
+
+
+                make_binary_mask_from_colored_image(file_path, output_path=file_path, threshold=10)
+
+
+
+
+
+
+                # img1= crop_image_with_padding(ProccedFile, object_position, crop_size=512, fill_mode='transparent')
+                # img1.save(ProccedFile)
+
+
+                # img2= crop_image_with_padding(file_path, object_position, crop_size=512, fill_mode='transparent')
+                # img2.save(file_path)
+
+
+
+
+
+
+
+
                 
                 image = Image.open(rgb).convert("RGBA")
                 # image = image.transpose(Image.FLIP_TOP_BOTTOM)
                 
 
                 image.save(rgb)
-                time.sleep(10)
+               
             
                 
-                call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_Modify', "img2img", prompt, input_image=rgb, mask_image=file_path)
+                call_SDimg(urlid,"http://127.0.0.1:7860", f'{urlid}_Modify', "img2img", prompt, input_image=rgb, mask_image=file_path, inpainting_mode= 1)
                 
              
-                object_position = (object_x,object_y)
+               
                 time.sleep(10)
                 print("wait!!!!!")
                 server_url = "http://127.0.0.1:8686/process"
@@ -321,7 +538,7 @@ def upload_image():
                 }
 
         
-                # requesttoReal3D(server_url, f"{urlid}_Modify.png", params)
+                requesttoReal3D(server_url, f"{urlid}_Modify.png", params)
 
 
 
@@ -329,24 +546,25 @@ def upload_image():
 
 
 
-                #call_Real3D(f'{urlid}_Modify.png',f"{folder}",urlid)
+            #call_Real3D(f'{urlid}_Modify.png',f"{folder}",urlid)
             #call_Fast3D(file_path, "./output", urlid)
             # ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
             # call_removebg_subprocess( f'{urlid}_Modify.png', ProccedFile, object_position,urlid)
 
         except Exception as e:
               print(f"Failed to process image: {e}")
-
+    
     if file_type == "RGB":
         object_position = (object_x,object_y)
         ProccedFile = os.path.join(UPLOAD_FOLDER,urlid+"_rm.png")
         MaskFile = os.path.join(UPLOAD_FOLDER,urlid+"_mask.png")
         # predictor = load_sam_model("sam_vit_h_4b8939.pth")
         # Remove background using SAM with transparency
-
-        path = call_removebg_subprocess(file_path, ProccedFile, object_position,MaskFile,urlid)
+        if (msk== None):
+            path = call_removebg_subprocess(file_path, ProccedFile, object_position,MaskFile,urlid,0.6)
         # ProccedFile=removebg_with_sam(file_path, f"{urlid}_rm.png", object_position)
-        
+        else:
+            path = apply_mask_and_make_transparent(file_path, SegMask, ProccedFile)
 
 
         server_url = "http://127.0.0.1:8686/process"
@@ -365,22 +583,12 @@ def upload_image():
         "Object_Point": f"{object_x},{object_y}"
         }
 
-        # if(path!=None):
-        #   requesttoReal3D(server_url, image_path, params)
-        # else:
-        #     print("Error in removebg")
+        if(path!=None):
+          requesttoReal3D(server_url, image_path, params)
+        else:
+            print("Error in removebg")
 
 
-        #call_Fast3D(file_path, "./output", urlid)
-        #call_removebg_subprocess( file_path, ProccedFile, object_position,urlid)
-
-
-
-    # if file_type == "Mask":
-    #     object_position = (object_x,object_y)
-    #     rgb = os.path.join(UPLOAD_FOLDER, urlid+".png")
-    #     call_SDimg("http://127.0.0.1:7860", f'{urlid}_Modify.png', "img2img", prompt, input_image=rgb, mask_image=file_path)
-    # Return the response including all received parameters for reference
     return jsonify({
         "message": "File uploaded and processed successfully",
         "file_path": file_path,
@@ -392,6 +600,86 @@ def upload_image():
         "debugDraw": debug_draw
     }), 200
 
+from PIL import Image
+
+def make_binary_mask_from_colored_image(image_path, output_path="binary_mask.png", threshold=10):
+    """
+    Converts a color image with black background into a binary mask:
+    - Non-black pixels become white.
+    - Black pixels stay black.
+    
+    Args:
+        image_path (str): Path to the input image.
+        output_path (str): Where to save the resulting binary mask.
+        threshold (int): Black threshold (0–255). Lower means stricter black.
+    """
+    image = Image.open(image_path).convert("RGB")
+    pixels = image.getdata()
+    
+    mask_pixels = []
+    for pixel in pixels:
+        r, g, b = pixel
+        if r < threshold and g < threshold and b < threshold:
+            mask_pixels.append((0, 0, 0))  # Keep black
+        else:
+            mask_pixels.append((255, 255, 255))  # Turn to white
+
+    binary_mask = Image.new("RGB", image.size)
+    binary_mask.putdata(mask_pixels)
+    binary_mask.save(output_path)
+    print(f"Binary mask saved to {output_path}")
+
+
+
+def overlay_mask_on_image(image_path, mask_path, output_path="combined_result.png"):
+    """
+    Overlays a color+black mask on top of an image, making black parts transparent.
+    
+    Args:
+        image_path (str): Path to the base image.
+        mask_path (str): Path to the mask image (color + black).
+        output_path (str): Path to save the result image.
+    """
+    # Load and convert to RGBA
+    background = Image.open(image_path).convert("RGBA")
+    mask = Image.open(mask_path).convert("RGBA")
+
+    # Resize mask to match background if needed
+    if background.size != mask.size:
+        mask = mask.resize(background.size)
+
+    # Make black parts in mask transparent
+    datas = mask.getdata()
+    new_data = []
+    for item in datas:
+        if item[0] < 10 and item[1] < 10 and item[2] < 10:
+            new_data.append((0, 0, 0, 0))  # Transparent
+        else:
+            new_data.append(item)
+    mask.putdata(new_data)
+
+    # Overlay mask on background
+    background.paste(mask, (0, 0), mask)
+    background.save(output_path)
+    print(f"Saved combined image to {output_path}")
+
+
+
+
+def apply_mask_and_make_transparent(rgb_path, mask_path, output_path):
+    # Open images
+    rgb = Image.open(rgb_path).convert("RGBA")
+    mask = Image.open(mask_path).convert("L")  # Convert mask to grayscale
+
+    # Create alpha channel from mask (white=255 opaque, black=0 transparent)
+    alpha = mask.point(lambda p: 255 if p > 128 else 0)  # Thresholding
+    # Add alpha to RGB image
+    r, g, b, _ = rgb.split()
+    rgba = Image.merge("RGBA", (r, g, b, alpha))
+    # Save result
+    rgba.save(output_path)
+
+    return output_path
 
 def run_depth_export_with_popen(script_path, image_path, device="cuda",
                                 plane_removal_factor=0.5, thresh_min=0.1,
@@ -451,6 +739,48 @@ def run_depth_export_with_popen(script_path, image_path, device="cuda",
     
     return stdout, stderr
 
+
+
+def crop_image_with_padding(image_path, center, crop_size=512, fill_mode='black'):
+    image = Image.open(image_path)
+    x, y = center
+    width, height = image.size
+
+    # Ensure image has alpha if using transparency
+    if fill_mode == 'transparent':
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+        fill_color = (0, 0, 0, 0)  # Transparent
+    else:
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        fill_color = (0, 0, 0)  # Black
+
+    # Create a new blank image with desired fill
+    new_image = Image.new(image.mode, (crop_size, crop_size), fill_color)
+
+    # Calculate box coordinates in original image
+    left = x - crop_size // 2
+    upper = y - crop_size // 2
+    right = left + crop_size
+    lower = upper + crop_size
+
+    # Calculate where to paste on the new image
+    paste_left = max(0, -left)
+    paste_upper = max(0, -upper)
+
+    # Crop area from original image
+    crop_box = (
+        max(0, left),
+        max(0, upper),
+        min(right, width),
+        min(lower, height)
+    )
+    cropped_region = image.crop(crop_box)
+
+    # Paste the cropped region into the new image
+    new_image.paste(cropped_region, (paste_left, paste_upper))
+    return new_image
 
 
 
@@ -515,7 +845,7 @@ def send_requestShapE(urlid, prompt, url="http://127.0.0.1:6363/generate"):
     data = {
         "URID": urlid,  # Fixed key name (your Flask function expects "URID", not "URLID")
         "prompt": prompt,
-        "filename": f"{urlid}_ShapE"
+        "filename": f"{urlid}"
     }
     headers = {"Content-Type": "application/json"}  # Set correct JSON header
 
@@ -837,7 +1167,7 @@ def perform_texture_change(url, yaml_path: str, URLid: str) -> None:
         shutil.copytree(source_folder, destination_folder)
         print("Copy completed. Zipping folder after delay...")
         
-        zip_files_with_delay(destination_folder, f"{URLid}_Texture.zip", delay=10)
+        zip_files_with_delay(destination_folder, f"{URLid}_Texture.zip", delay=5)
         print("Post-success operations completed.")
     else:
         print("Texture change request failed. No post-success operations executed.")
@@ -951,7 +1281,7 @@ def removebg_with_sam(input_file, output_file, point_data, threshold=0.5):
         return None
 
 
-def call_removebg_subprocess( input_file, output_file, point_data,mask_file,urlid):
+def call_removebg_subprocess( input_file, output_file, point_data,mask_file,urlid, threshold=0.2):
     """
     Calls the removebg script as a subprocess.
 
@@ -1122,44 +1452,104 @@ def capture_ipcam_frame(output_path="captured_frame.jpg"):
         print("No frame available to capture!")
 
 
-def call_OpenAI_script(prompt, output_path,instruction,urlid):
-    global open_ai_key
-    # Construct the command to call the external script
+
+
+def call_OpenAI_script(prompt, output_path, instruction, urlid):
     command = [
         'python', 'send_openai_prompt.py',
         '--prompt', prompt,
         '--output_path', output_path,
         '--instructions_file', f'./PromptInstructions/{instruction}.txt'
     ]
-    
-    # Run the command using subprocess.Popen
+
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    
-    # Communicate with the process to capture stdout and stderr
     stdout, stderr = process.communicate()
-    
-    # Check the return code for success or error
+
+    if process.returncode == 0:
+        print("Success:", stdout)
+       
+
+        if not os.path.exists(output_path):
+            raise FileNotFoundError(f"[OpenAI Script] Output file not found: {output_path}")
+        
+
+    # Optional: post-processing if needed
+        if instruction in ["DynamicCoding", "DynamicCoding2"]:
+
+            print("After call OPENAI:" + urlid)
+            shape = save_lua_from_json(output_path, f"{urlid}.lua")
+            send_requestShapE(urlid, shape)
+
+    return True
+
+
+def call_3DTextToPosition_script( sentence,output_path,model_path="model_final.pth"):
+    command = [
+        'python', '3DTextToPosition.py',
+        '--model_path', model_path,
+        '--sentence', sentence,
+        '--output_path', output_path
+    ]
+
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    stdout, stderr = process.communicate()
+
     if process.returncode == 0:
         print("Success:", stdout)
 
-        if(instruction=="DynamicCoding"):
-            shape=""
-            shape=save_lua_from_json(output_path,f"{urlid}.lua")
-            send_requestShapE(urlid,shape)
-        if(instruction=="DynamicCoding2"):
-            shape=""
-            shape=save_lua_from_json(output_path,f"{urlid}.lua")
-            send_requestShapE(urlid,shape)
-            #generate_3d_model(shape, urlid)
-            #ShapEserver.ShapEgeneratemodel(urlid,shape)
+        if not os.path.exists(output_path):
+            raise FileNotFoundError(f"[3DTextToPosition Script] Output file not found: {output_path}")
 
-
-
-
-        return True  # Indicate success
     else:
         print("Error:", stderr)
-        return False  # Indicate failure
+        raise RuntimeError(f"[3DTextToPosition Script] Failed with error:\n{stderr}")
+
+    return True
+
+
+
+
+
+
+
+# def call_OpenAI_script(prompt, output_path,instruction,urlid):
+#     global open_ai_key
+#     # Construct the command to call the external script
+#     command = [
+#         'python', 'send_openai_prompt.py',
+#         '--prompt', prompt,
+#         '--output_path', output_path,
+#         '--instructions_file', f'./PromptInstructions/{instruction}.txt'
+#     ]
+    
+#     # Run the command using subprocess.Popen
+#     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    
+#     # Communicate with the process to capture stdout and stderr
+#     stdout, stderr = process.communicate()
+    
+#     # Check the return code for success or error
+#     if process.returncode == 0:
+#         print("Success:", stdout)
+
+#         if(instruction=="DynamicCoding"):
+#             shape=""
+#             shape=save_lua_from_json(output_path,f"{urlid}.lua")
+#             send_requestShapE(urlid,shape)
+#         if(instruction=="DynamicCoding2"):
+#             shape=""
+#             shape=save_lua_from_json(output_path,f"{urlid}.lua")
+#             send_requestShapE(urlid,shape)
+#             #generate_3d_model(shape, urlid)
+#             #ShapEserver.ShapEgeneratemodel(urlid,shape)
+
+
+
+
+#         return True  # Indicate success
+#     else:
+#         print("Error:", stderr)
+#         return False  # Indicate failure
 
 def open_the_sd(sd_folder="sd.webui", batch_file="run.bat"):
     """
@@ -1302,25 +1692,31 @@ def RunTheTRXURE (YamalPath,URLid):
     
     return True
 
-
+import tempfile
 def zip_files_with_delay(directory, output_zip, delay=10):
     time.sleep(delay)
-    
-    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # Iterate through all files in the directory
-        for root, _, files in os.walk(directory):
-            for file in files:
-                # Determine the path of the file to be zipped
-                file_path = os.path.join(root, file)
-                
-                # Determine the arcname (the name of the file within the zip archive)
-                # This will be the relative path of the file with respect to the directory
-                arcname = os.path.relpath(file_path, directory)
-                
-                # Write the file to the zip archive
-                zipf.write(file_path, arcname)
-        
+
+    # Create a temporary file to hold the zip
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
+        temp_zip_path = tmp.name
+
+    try:
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, _, files in os.walk(directory):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, directory)
+                    zipf.write(file_path, arcname)
+
+        # After successful zipping, move to final destination
+        shutil.move(temp_zip_path, output_zip)
         print("Done!")
+
+    except Exception as e:
+        # If anything fails, clean up the temp file
+        if os.path.exists(temp_zip_path):
+            os.remove(temp_zip_path)
+        raise e
 
 def initialize():
     # ShapEserver.initialize_models()

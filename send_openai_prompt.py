@@ -2,6 +2,7 @@ import requests
 import argparse
 import json
 import os
+import re
 
 def generate_payload(api_key, prompt):
     """Generates the payload for sending a request to the OpenAI API."""
@@ -26,6 +27,47 @@ def load_config(config_file):
         config = json.load(file)
     return config
 
+def remove_markdown_backticks(text):
+    """Removes ```json and ``` markers if present."""
+    text = text.strip()
+    if text.startswith("```json"):
+        text = text[len("```json"):].strip()
+    if text.startswith("```"):
+        text = text[len("```"):].strip()
+    if text.endswith("```"):
+        text = text[:-3].strip()
+    return text
+
+def smart_clean_json_response(bad_json_text):
+    """Attempts a smarter fix for raw API responses with embedded Lua code issues."""
+    inside_lua = False
+    cleaned_lines = []
+
+    for line in bad_json_text.splitlines():
+        # Check if entering lua_code field
+        if '"lua_code": "' in line:
+            inside_lua = True
+            cleaned_lines.append(line.strip())
+            continue
+        
+        if inside_lua:
+            # Check if this line ends the lua_code string
+            if line.strip().endswith('",') or line.strip().endswith('"'):
+                inside_lua = False
+                cleaned_lines.append(line.strip())
+                continue
+            
+            # Otherwise, clean this Lua line
+            line = line.strip()
+            line = line.replace('"', r'\"')  # Escape quotes inside Lua
+            cleaned_lines.append(line)
+        else:
+            cleaned_lines.append(line.strip())
+
+    # Merge cleaned lines into one string
+    cleaned_json = ''.join(cleaned_lines)
+    return cleaned_json
+
 def main():
     config_path = './config.json'
     config = load_config(config_path)
@@ -33,7 +75,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Send prompt to OpenAI API, create assistant, and save the response as a JSON file")
     parser.add_argument('--prompt', type=str, required=True, help="Prompt for the API")
-    parser.add_argument('--api_key', type=str, default=open_ai_key, help="OpenAI API Key (default: your-default-api-key-here)")
+    parser.add_argument('--api_key', type=str, default=open_ai_key, help="OpenAI API Key (default: from config.json)")
     parser.add_argument('--output_path', type=str, required=True, help="Path to save the output JSON file")
     parser.add_argument('--instructions_file', type=str, required=True, help="Path to the instructions text file")
 
@@ -71,33 +113,42 @@ def main():
     # Extract assistant's response safely
     assistant_message = response_json['choices'][0].get('message', {})
 
-    # Ensure 'content' exists
     if 'content' not in assistant_message:
         print("Error: Missing 'content' field in API response:", response_json)
         return
 
     assistant_content = assistant_message['content'].strip()
 
-    # Debug: Print raw API response
+    # Step 1: Remove Markdown ```json``` decorations if present
+    assistant_content = remove_markdown_backticks(assistant_content)
+
+    # Debug: Print cleaned API response
     print("Raw API Response:", assistant_content)
 
-    # Parse the first level JSON
+    # Step 2: Try parsing normally
     try:
-        assistant_content_json = json.loads(assistant_content)  # First parse
-
-        # If the response is mistakenly wrapped inside {"content": "...JSON STRING..."}, extract and parse again
-        if isinstance(assistant_content_json, dict) and "content" in assistant_content_json:
-            inner_content = assistant_content_json["content"]
-            try:
-                assistant_content_json = json.loads(inner_content)  # Second parse
-            except json.JSONDecodeError:
-                print("Warning: Second level JSON parsing failed. Keeping original.")
-    
+        assistant_content_json = json.loads(assistant_content)
     except json.JSONDecodeError:
-        print("Error: Response is not valid JSON")
-        return
+        print("First JSON parse failed. Trying smart auto-fix...")
 
-    # Save to output file
+        fixed_content = smart_clean_json_response(assistant_content)
+
+        try:
+            assistant_content_json = json.loads(fixed_content)
+            print("Smart auto-fix succeeded.")
+        except json.JSONDecodeError:
+            print("Smart auto-fix failed. JSON still invalid.")
+            return
+
+    # Step 3: Handle if response is double-wrapped
+    if isinstance(assistant_content_json, dict) and "content" in assistant_content_json:
+        inner_content = assistant_content_json["content"]
+        try:
+            assistant_content_json = json.loads(inner_content)
+        except json.JSONDecodeError:
+            print("Warning: Second level JSON parsing failed. Keeping original.")
+
+    # Step 4: Save to output file
     with open(args.output_path, 'w') as json_file:
         json.dump(assistant_content_json, json_file, indent=4)
 
