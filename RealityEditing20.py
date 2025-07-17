@@ -51,9 +51,74 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OBJECTs_FOLDER, exist_ok=True)
 
 
+
 filemanager = REFileManager(base_directory=OBJECTs_FOLDER)
 
 open_ai_key=""
+session_id=""
+
+
+@app.route('/submit_session', methods=['POST'])
+def submit_session():
+    try:
+        session_data = request.get_json()
+
+        # Make sure the field exists
+        session_id = session_data.get("sessionURLID", None)
+        if not session_id:
+            return jsonify({
+                "status": "error",
+                "message": "Missing 'sessionURLID' in payload."
+            }), 400
+
+        # Save as {sessionURLID}_scene.json
+        filename = f"{session_id}_scene.json"
+        file_path = os.path.join("", filename)
+
+        with open(file_path, 'w') as f:
+            json.dump(session_data, f, indent=2)
+
+        print(f"✅ Saved session to {file_path}")
+
+        return jsonify({
+            "status": "success",
+            "message": f"Saved as {filename}"
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+    
+
+def session_exists(session_id):
+    filename = f"{session_id}_scene.json"
+    file_path = os.path.join("", filename)
+    return os.path.exists(file_path)
+    
+
+
+from flask import send_file
+
+@app.route('/get_session/<session_id>', methods=['GET'])
+def get_session(session_id):
+    filename = f"{session_id}_scene.json"
+    file_path = os.path.join("", filename)
+
+    if os.path.exists(file_path):
+        return send_file(file_path, mimetype='application/json')
+    else:
+        return jsonify({
+            "status": "error",
+            "message": f"Session '{session_id}' not found."
+        }), 404
+
+
+
+
+
 
 
 
@@ -154,6 +219,8 @@ def DrawCreate():
     requesttoReal3D(server_url, f'{urlid}_3DDrawing.png', params)
     return jsonify({"message": ""}), 200
 
+
+
 @app.route('/command', methods=['POST'])
 def command():
     global filemanager
@@ -192,12 +259,19 @@ def command():
     if command == "DynamicCoding":
         print("p2play")
         print(prompt)
-        
         print(folder)
-
         print(urlid)
+        if(session_id!=""):
+
+            print("session_id is not empty")
+        else:
+            print("session_id is empty")
+            # session_id = IDGenerator.generate_id()
+            # print("New session_id generated:", session_id)
+            call_OpenAI_script(prompt, f"{folder}/{urlid}_DynamicCoding.json",command+"2",urlid)
+
+
         
-        call_OpenAI_script(prompt, f"{folder}/{urlid}_DynamicCoding.json",command+"2",urlid)
         return jsonify({"message": "DynamicCodin"}), 200
      
     if command == "ChangeTexture":
