@@ -1,0 +1,91 @@
+prompt_template: |
+  # 🎯 Task: What this generation does
+  Task: Generate a Unity-compatible JSON configuration that defines either:
+
+  1. An interactive object using Lua scripting and optional particle effects, or  
+  2. A standalone particle effect with no associated object.
+
+  ---
+
+  # 🌍 Scene context from session.json
+  Scene Context:
+  - Premise: {premise}
+  - Additional Detail: {prompt}
+  - Physical Furniture in Scene: [{furniture}]
+  - Virtual Objects in Scene: [{generate_spots}]
+
+  ---
+
+  # 🔁 Previously generated dynamic content to avoid duplication
+  Existing Generated Objects:
+  The following virtual or dynamic objects already exist in the scene. Consider their behavior and avoid duplicating effects or interaction logic.
+  You may reference them only if they appear in the furniture or generateSpots lists.
+
+  {existing_objects}
+
+  ---
+
+  # ⚙️ System-level assumptions and valid Lua functions
+  System Setup:
+  - All physical objects (furniture) have colliders and rigidbodies and can detect collisions.
+  - All objects support Lua scripting using:
+    • start() – for initialization
+    • update(deltaTime) – for animation/timers
+    • onCollisionEnter(other) – for collisions
+    • trigger() – explicitly called interaction
+
+  # 🔧 Allowed Lua functions
+  Available Lua helpers:
+  - activateEffect(effectName) / deactivateEffect()
+  - this.transform.Translate(...), Rotate(...), Scale(...)
+  - this.rigidbody:AddForce(...) / AddTorque(...)
+
+  ---
+
+  # 💨 Required particle parameters
+  Particle Effects:
+  Each effect must define:
+  - effectName
+  - duration
+  - startColor (RGBA)
+  - startSize
+  - startSpeed
+  - maxParticles
+  - shape
+  - emissionRate
+  - lifetime
+
+  # 🎨 Optional curve/evolution fields
+  Optional:
+  - velocityOverLifetime
+  - colorOverLifetime
+
+  ---
+
+  # 🧱 Object naming constraints
+  ⚠️ Object Reference Constraints:
+  - Only refer to object names from the **Physical Furniture** list when checking collisions like: if other.name == "..."
+  - Do NOT invent object names.
+  - If no valid object is available, use fallback logic like: if true then
+
+  ---
+
+  # 🌫 Special case: particle-only effects
+  🎯 Particle-Only Rule:
+  If the result is purely a visual particle effect (not tied to an object):
+  - "object": "" (empty string)
+  - "lua_code": "" or empty
+  - "particle_json": must still be complete and valid
+
+  ---
+
+  # ✅ Final output requirements
+  ✅ Output Format:
+  Return only valid JSON with these exact keys:
+  {
+    "object": "ObjectName or empty string",
+    "lua_code": "Lua script string",
+    "particle_json": [ { ParticleEffectDefinition(s) } ]
+  }
+
+  Do not include explanations, comments, or markdown formatting.

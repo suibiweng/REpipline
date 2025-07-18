@@ -561,25 +561,6 @@ def upload_image():
 
                 make_binary_mask_from_colored_image(file_path, output_path=file_path, threshold=10)
 
-
-
-
-
-
-                # img1= crop_image_with_padding(ProccedFile, object_position, crop_size=512, fill_mode='transparent')
-                # img1.save(ProccedFile)
-
-
-                # img2= crop_image_with_padding(file_path, object_position, crop_size=512, fill_mode='transparent')
-                # img2.save(file_path)
-
-
-
-
-
-
-
-
                 
                 image = Image.open(rgb).convert("RGBA")
                 # image = image.transpose(Image.FLIP_TOP_BOTTOM)
