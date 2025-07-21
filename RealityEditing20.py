@@ -4,7 +4,7 @@ import os
 import cv2
 import subprocess
 import json
-import NDIlib as ndi
+# import NDIlib as ndi
 import numpy as np
 import threading
 import requests
@@ -262,6 +262,8 @@ def command():
         print(folder)
         print(urlid)
         if(session_id!=""):
+            
+            call_lua_generator(f"{session_id}_scene_session.json", f"./PromptInstructions/base_prompt0717.yaml", urlid)
 
             print("session_id is not empty")
         else:
@@ -1334,6 +1336,29 @@ def removebg_with_sam(input_file, output_file, point_data, threshold=0.5):
     except Exception as e:
         print(f"\nError: {e}")
         return None
+    
+def call_lua_generator(scene_json, prompt_yaml, download_id):
+    """
+    Calls the Lua generator subprocess with the given arguments and outputs
+    to /objects/{download_id}/{download_id}_DynamicCoding.json.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "python",
+                "LuaGenerator.py",
+                scene_json,
+                "objects",  # fixed base folder
+                prompt_yaml,
+                download_id
+            ],
+            check=True
+        )
+        print("✅ Lua generation subprocess completed.")
+    except subprocess.CalledProcessError as e:
+        print("❌ Error while running Lua generator:", e)
+    except FileNotFoundError:
+        print("❌ Python or script not found. Make sure paths are correct.")
 
 
 def call_removebg_subprocess( input_file, output_file, point_data,mask_file,urlid, threshold=0.2):
@@ -1383,6 +1408,7 @@ def call_removebg_subprocess( input_file, output_file, point_data,mask_file,urli
 
 def ndi_receiver():
     global ndi_frame
+    return
 
     if not ndi.initialize():
         print("Cannot initialize NDI")
