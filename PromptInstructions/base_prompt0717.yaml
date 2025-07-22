@@ -82,10 +82,10 @@ prompt_template: |
   # ✅ Final output requirements
   ✅ Output Format:
   Return only valid JSON with these exact keys:
-  {
+  {{
     "object": "ObjectName or empty string",
     "lua_code": "Lua script string",
-    "particle_json": [ { ParticleEffectDefinition(s) } ]
-  }
+    "particle_json": [ {{ ParticleEffectDefinition(s) }} ]
+  }}
 
   Do not include explanations, comments, or markdown formatting.

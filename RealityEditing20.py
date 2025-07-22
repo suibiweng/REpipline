@@ -58,39 +58,33 @@ open_ai_key=""
 session_id=""
 
 
-@app.route('/submit_session', methods=['POST'])
+@app.route('/submit_session', methods=["POST"])
 def submit_session():
+    global session_id
     try:
-        session_data = request.get_json()
+        print("request.data =", request.data)
+        print("request.content_type =", request.content_type)
+        print("request.is_json =", request.is_json)
 
-        # Make sure the field exists
-        session_id = session_data.get("sessionURLID", None)
+        session_data = request.get_json(force=True)
+        print("✅ Parsed JSON:", session_data)
+
+        session_id = session_data.get("sessionURLID")
+        print("Session ID:", session_id)
+
         if not session_id:
-            return jsonify({
-                "status": "error",
-                "message": "Missing 'sessionURLID' in payload."
-            }), 400
+            return jsonify({"status": "error", "message": f"Missing 'sessionURLID'. Keys: {list(session_data.keys())}"}), 400
 
-        # Save as {sessionURLID}_scene.json
         filename = f"{session_id}_scene.json"
-        file_path = os.path.join("", filename)
-
-        with open(file_path, 'w') as f:
+        with open(filename, 'w') as f:
             json.dump(session_data, f, indent=2)
 
-        print(f"✅ Saved session to {file_path}")
-
-        return jsonify({
-            "status": "success",
-            "message": f"Saved as {filename}"
-        }), 200
+        return jsonify({"status": "success", "message": f"Saved as {filename}"}), 200
 
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        print("❌ Exception:", str(e))
+        return jsonify({"status": "error", "message": str(e)}), 500
+
     
 
 def session_exists(session_id):
@@ -223,7 +217,7 @@ def DrawCreate():
 
 @app.route('/command', methods=['POST'])
 def command():
-    global filemanager
+    global filemanager,session_id
     command = request.form.get('Command', 'No prompt provided')
     urlid = request.form.get('URLID', 'default')
     prompt = request.form.get('Prompt', '')
@@ -263,7 +257,13 @@ def command():
         print(urlid)
         if(session_id!=""):
             
-            call_lua_generator(f"{session_id}_scene_session.json", f"./PromptInstructions/base_prompt0717.yaml", urlid)
+            call_lua_generator(
+            mode="generate",
+            yaml_path=f"./PromptInstructions/base_prompt0717.yaml",
+            object_prompt=prompt,
+            scene_json=f"{session_id}_scene.json",
+            urlid=urlid
+        )
 
             print("session_id is not empty")
         else:
@@ -274,7 +274,23 @@ def command():
 
 
         
-        return jsonify({"message": "DynamicCodin"}), 200
+        return jsonify({"message": "DynamicCoding"}), 200
+    
+    if command == "ModifyDynamicCoding":
+        print("p2play")
+        print(prompt)
+        print(folder)
+        print(urlid)
+        if(session_id!=""):
+            call_lua_generator(
+                mode="modify",
+                yaml_path=f"./PromptInstructions/base_prompt0717.yaml",
+                object_prompt=prompt,
+                existing_json_path=f"{folder}/{urlid}_DynamicCoding.json"
+            )
+            print("session_id is not empty")
+        
+        return jsonify({"message": "ModifyDynamicCoding"}), 200
      
     if command == "ChangeTexture":
          print( urlid+"Change Texture to"+prompt)
@@ -1337,28 +1353,44 @@ def removebg_with_sam(input_file, output_file, point_data, threshold=0.5):
         print(f"\nError: {e}")
         return None
     
-def call_lua_generator(scene_json, prompt_yaml, download_id):
+
+def call_lua_generator(mode, yaml_path, object_prompt, *, scene_json=None, urlid=None, existing_json=None):
     """
-    Calls the Lua generator subprocess with the given arguments and outputs
-    to /objects/{download_id}/{download_id}_DynamicCoding.json.
+    Calls LuaGenerator.py in either 'generate' or 'modify' mode.
+
+    Parameters:
+        mode: "generate" or "modify"
+        yaml_path: path to base_prompt.yaml
+        object_prompt: the user prompt to drive generation/modification
+        scene_json: required for 'generate' mode
+        urlid: required for 'generate' mode
+        existing_json: required for 'modify' mode
     """
     try:
-        result = subprocess.run(
-            [
-                "python",
-                "LuaGenerator.py",
-                scene_json,
-                "objects",  # fixed base folder
-                prompt_yaml,
-                download_id
-            ],
-            check=True
-        )
+        if mode == "generate":
+            if not scene_json or not urlid:
+                raise ValueError("scene_json and urlid are required for generate mode.")
+            args = [
+                "python", "LuaGenerator.py", "generate",
+                scene_json, yaml_path, urlid, object_prompt
+            ]
+        elif mode == "modify":
+            if not existing_json:
+                raise ValueError("existing_json is required for modify mode.")
+            args = [
+                "python", "LuaGenerator.py", "modify",
+                existing_json, yaml_path, object_prompt
+            ]
+        else:
+            raise ValueError("mode must be either 'generate' or 'modify'")
+
+        result = subprocess.run(args, check=True)
         print("✅ Lua generation subprocess completed.")
+
     except subprocess.CalledProcessError as e:
-        print("❌ Error while running Lua generator:", e)
-    except FileNotFoundError:
-        print("❌ Python or script not found. Make sure paths are correct.")
+        print("❌ Error during Lua generation subprocess:", e)
+    except Exception as e:
+        print("❌", str(e))
 
 
 def call_removebg_subprocess( input_file, output_file, point_data,mask_file,urlid, threshold=0.2):
