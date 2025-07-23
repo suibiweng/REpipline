@@ -28,7 +28,7 @@ prompt_template: |
     • start() – initialization logic
     • update(deltaTime) – frame update
     • onCollisionEnter(other) – called when physical collision is detected
-    • trigger() – called manually via button/controller press, not automatically by collision
+    • trigger() – called manually via button/controller press
 
   Available Lua Helpers:
   - activateEffect(effectName)
@@ -81,7 +81,8 @@ prompt_template: |
   {{
     "object": "ObjectName or empty string",
     "lua_code": "Lua script string",
-    "particle_json": [ {{ ParticleEffectDefinition(s) }} ]
+    "particle_json": [ {{ ParticleEffectDefinition(s) }} ],
+    "comment": "Brief explanation of logic and design choices"
   }}
 
-  Do not include explanations, comments, or markdown formatting.
+  Do not include explanations, markdown, or extra wrapping outside of this JSON.
