@@ -83,7 +83,7 @@ def generate_dynamic_lua(scene_json_path, base_prompt_yaml_path, urlid, object_p
     output_path = os.path.join(dynamic_folder, f"{urlid}_DynamicCoding.json")
     with open(output_path, 'w') as f:
         f.write(result)
-    print(f"✅ Lua JSON generated and saved to: {output_path}")
+    print(f"Lua JSON generated and saved to: {output_path}")
     return result
 
 def modify_dynamic_lua(existing_json_path, base_prompt_yaml_path, object_prompt):
@@ -102,7 +102,7 @@ def modify_dynamic_lua(existing_json_path, base_prompt_yaml_path, object_prompt)
 
     with open(existing_json_path, 'w') as f:
         f.write(result)
-    print(f"✅ Modified Lua JSON overwritten to: {existing_json_path}")
+    print(f"Modified Lua JSON overwritten to: {existing_json_path}")
     return result
 
 # --------- CLI Entry Point ---------

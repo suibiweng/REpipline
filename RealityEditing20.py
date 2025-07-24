@@ -1374,6 +1374,7 @@ def call_lua_generator(mode, yaml_path, object_prompt, *, scene_json=None, urlid
                 "python", "LuaGenerator.py", "generate",
                 scene_json, yaml_path, urlid, object_prompt
             ]
+            expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
         elif mode == "modify":
             if not existing_json:
                 raise ValueError("existing_json is required for modify mode.")
@@ -1381,14 +1382,26 @@ def call_lua_generator(mode, yaml_path, object_prompt, *, scene_json=None, urlid
                 "python", "LuaGenerator.py", "modify",
                 existing_json, yaml_path, object_prompt
             ]
+            expected_output = existing_json
         else:
             raise ValueError("mode must be either 'generate' or 'modify'")
 
-        result = subprocess.run(args, check=True)
-        print("✅ Lua generation subprocess completed.")
+        result = subprocess.run(args, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            print("✅ Lua generation subprocess completed.")
+            print(f"📄 Output saved to: {expected_output}")
+
+            if(mode == "generate"):
+                shape = save_lua_from_json(expected_output, f"{urlid}.lua")
+                send_requestShapE(urlid, shape)
+
+        else:
+            print("❌ Lua generation failed with return code:", result.returncode)
+            print(result.stderr)
 
     except subprocess.CalledProcessError as e:
-        print("❌ Error during Lua generation subprocess:", e)
+        print("❌ Subprocess error:", e)
     except Exception as e:
         print("❌", str(e))
 

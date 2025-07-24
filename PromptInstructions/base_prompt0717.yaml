@@ -24,22 +24,22 @@ prompt_template: |
 
   System Setup:
   - All physical objects (furniture) have colliders and rigidbodies and can detect collisions.
-  - All objects support Lua scripting using the following functions:
-    • start() – initialization logic
-    • update(deltaTime) – frame update
-    • onCollisionEnter(other) – called when physical collision is detected
-    • trigger() – called manually via button/controller press
+  - All objects support Lua scripting using:
+    • start() – for initialization
+    • update(deltaTime) – for animation/timers
+    • onCollisionEnter(other) – for collisions
+    • trigger() – explicitly called interaction
 
-  Available Lua Helpers:
-  - activateEffect(effectName)
-  - deactivateEffect()
-  - transformProxy.Translate(Vector3)
-  - transformProxy.Rotate(Vector3)
-  - rigidbodyProxy:AddForce(Vector3)
-  - rigidbodyProxy:SetUseGravity(bool)
-  - audioSourceProxy.Play(), Stop(), Pause()
-  - animatorProxy.Play("state"), SetTrigger("name")
-  - textProxy.SetText("..."), SetColor(Color)
+  --
+
+  Allowed Lua Proxies and Helpers:
+  You may use the following registered Lua proxies and functions:
+  - transformProxy: Translate, Rotate, SetPosition, etc.
+  - rigidbodyProxy: AddForce, SetUseGravity, etc.
+  - audioSourceProxy: Play, Stop, SetVolume, SetLoop
+  - textProxy, buttonProxy, animatorProxy, particleSystemProxy
+  - activateEffect("effectName"), deactivateEffect()
+  - Vector3(x, y, z), Color(r, g, b, a), Quaternion(x, y, z, w)
 
   --
 
@@ -62,27 +62,29 @@ prompt_template: |
   --
 
   Object Reference Constraints:
-  - Only refer to object names from the **Physical Furniture** list when checking `if other.name == "..."`.
+  - Only refer to object names from the Physical Furniture list when checking collisions like: if other.name == "..."
   - Do NOT invent object names.
-  - If no valid object is available, use `if true then` as fallback logic.
+  - If no valid object is available, use fallback logic like: if true then
 
   --
 
-  Particle-Only Rule:
+  Particle-Only Effects:
   If the result is purely a visual particle effect (not tied to an object):
   - "object": "" (empty string)
-  - "lua_code": "" (or empty)
+  - "lua_code": "" or empty
   - "particle_json": must still be complete and valid
 
   --
 
   Output Format:
-  Return only valid JSON with these exact keys:
-  {{
-    "object": "ObjectName or empty string",
-    "lua_code": "Lua script string",
-    "particle_json": [ {{ ParticleEffectDefinition(s) }} ],
-    "comment": "Brief explanation of logic and design choices"
-  }}
+  Return valid JSON using only the following keys:
 
-  Do not include explanations, markdown, or extra wrapping outside of this JSON.
+  {
+    "object": "ObjectName or empty string",
+    "lua_code": "Lua script string (escaped with \\n and \\t for JSON compatibility)",
+    "particle_json": [ { ParticleEffectDefinition(s) } ],
+    "comment": "Brief explanation of logic and design choices",
+    "created_at": "YYYY-MM-DDTHH:MM:SS"
+  }
+
+  Do not include markdown, explanations outside the JSON, or multiline Lua code blocks. The "lua_code" must be escaped as a single-line JSON string.
