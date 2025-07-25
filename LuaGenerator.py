@@ -27,7 +27,7 @@ def load_existing_generated_objects(folder):
                 data = json.load(f)
                 obj = data.get("object", "<unknown>")
                 effect_names = [p.get("effectName") for p in data.get("particle_json", [])]
-                summary = f"\u2022 \"{obj}\": uses effects {effect_names}"
+                summary = f"• \"{obj}\": uses effects {effect_names}"
                 summaries.append(summary)
     return summaries
 
@@ -69,7 +69,7 @@ def call_openai(prompt):
     return response.choices[0].message.content
 
 # --------- Main Functions ---------
-def generate_dynamic_lua(scene_json_path, base_prompt_yaml_path, urlid, object_prompt):
+def generate_dynamic_lua(scene_json_path, base_prompt_yaml_path, urlid, object_prompt, update_others=False):
     scene = load_scene_session(scene_json_path)
     dynamic_folder = os.path.join("objects", urlid)
     os.makedirs(dynamic_folder, exist_ok=True)
@@ -84,9 +84,44 @@ def generate_dynamic_lua(scene_json_path, base_prompt_yaml_path, urlid, object_p
     with open(output_path, 'w') as f:
         f.write(result)
     print(f"Lua JSON generated and saved to: {output_path}")
+
+    if update_others:
+        update_other_virtual_objects(scene, urlid, base_prompt_yaml_path, object_prompt)
+
     return result
 
-def modify_dynamic_lua(existing_json_path, base_prompt_yaml_path, object_prompt):
+def update_other_virtual_objects(scene, new_urlid, base_prompt_yaml_path, new_object_prompt):
+    for spot in scene.get("generateSpots", []):
+        other_id = spot.get("id")
+        if other_id != new_urlid:
+            obj_path = os.path.join("objects", other_id, f"{other_id}_DynamicCoding.json")
+            if os.path.exists(obj_path):
+                print(f"↪ Updating object: {other_id} in response to new object {new_urlid}...")
+                try:
+                    with open(obj_path, 'r') as f:
+                        existing_json = json.load(f)
+
+                    original_lua = existing_json.get("lua_code", "")
+                    object_name = existing_json.get("object", other_id)
+                    old_comment = existing_json.get("comment", "")
+
+                    object_summary = f"Existing object: {object_name}\nLua Code:\n{original_lua}\nComment:\n{old_comment}"
+                    update_prompt = f"{object_summary}\n\nNew object added: {new_object_prompt}\nPlease revise the Lua code of {object_name} if needed."
+
+                    base_prompt = load_base_prompt_template_yaml(base_prompt_yaml_path)
+                    full_prompt = build_prompt(scene, [], base_prompt, update_prompt)
+                    result = call_openai(full_prompt)
+
+                    updated_data = json.loads(result)
+                    updated_data["created_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+                    with open(obj_path, "w") as f:
+                        json.dump(updated_data, f, indent=2)
+                    print(f"✅ Updated: {other_id}")
+                except Exception as e:
+                    print(f"⚠️ Failed to update {other_id}: {e}")
+
+def modify_dynamic_lua(existing_json_path, base_prompt_yaml_path, object_prompt, update_others=False):
     with open(existing_json_path, 'r') as f:
         original_data = json.load(f)
 
@@ -103,6 +138,16 @@ def modify_dynamic_lua(existing_json_path, base_prompt_yaml_path, object_prompt)
     with open(existing_json_path, 'w') as f:
         f.write(result)
     print(f"Modified Lua JSON overwritten to: {existing_json_path}")
+
+    if update_others:
+        urlid = os.path.basename(existing_json_path).split("_")[0]
+        scene_path = f"{urlid}_scene.json"
+        if os.path.exists(scene_path):
+            scene = load_scene_session(scene_path)
+            update_other_virtual_objects(scene, urlid, base_prompt_yaml_path, object_prompt)
+        else:
+            print(f"⚠️ Cannot update others: Scene file not found for {urlid}")
+
     return result
 
 # --------- CLI Entry Point ---------
@@ -115,15 +160,17 @@ if __name__ == "__main__":
     gen_parser.add_argument("prompt_yaml", help="Path to base_prompt.yaml")
     gen_parser.add_argument("urlid", help="URL ID used to determine output path")
     gen_parser.add_argument("object_prompt", help="Prompt describing the object to generate")
+    gen_parser.add_argument("--update-others", action="store_true", help="Update other virtual objects if needed")
 
     mod_parser = subparsers.add_parser("modify")
     mod_parser.add_argument("existing_json", help="Path to existing DynamicCoding.json to be modified")
     mod_parser.add_argument("prompt_yaml", help="Path to base_prompt.yaml")
     mod_parser.add_argument("object_prompt", help="Prompt describing the modification")
+    mod_parser.add_argument("--update-others", action="store_true", help="Update other virtual objects if needed")
 
     args = parser.parse_args()
 
     if args.mode == "generate":
-        generate_dynamic_lua(args.scene_json, args.prompt_yaml, args.urlid, args.object_prompt)
+        generate_dynamic_lua(args.scene_json, args.prompt_yaml, args.urlid, args.object_prompt, args.update_others)
     elif args.mode == "modify":
-        modify_dynamic_lua(args.existing_json, args.prompt_yaml, args.object_prompt)
+        modify_dynamic_lua(args.existing_json, args.prompt_yaml, args.object_prompt, args.update_others)
