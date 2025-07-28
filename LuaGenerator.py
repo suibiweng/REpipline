@@ -1,3 +1,4 @@
+# LuaGenerator.py (FULL UPDATED VERSION)
 import openai  
 import os
 import json
@@ -66,7 +67,19 @@ def call_openai(prompt):
         ],
         temperature=0.5
     )
-    return response.choices[0].message.content
+    result = response.choices[0].message.content
+
+    try:
+        parsed = json.loads(result)
+        assert "object" in parsed
+        assert "comment" in parsed
+        assert "created_at" in parsed
+        assert "param_ui_lua" in parsed or "param_ui_particle" in parsed
+        print("✅ GPT output includes parametric UI definitions.")
+    except Exception as e:
+        print("❌ GPT output is missing required keys or is invalid JSON:", e)
+
+    return result
 
 # --------- Main Functions ---------
 def generate_dynamic_lua(scene_json_path, base_prompt_yaml_path, urlid, object_prompt, update_others=False):
@@ -79,7 +92,6 @@ def generate_dynamic_lua(scene_json_path, base_prompt_yaml_path, urlid, object_p
     full_prompt = build_prompt(scene, existing_objects, base_prompt, object_prompt)
     result = call_openai(full_prompt)
 
-    # Save result
     output_path = os.path.join(dynamic_folder, f"{urlid}_DynamicCoding.json")
     with open(output_path, 'w') as f:
         f.write(result)
@@ -128,9 +140,15 @@ def modify_dynamic_lua(existing_json_path, base_prompt_yaml_path, object_prompt,
     base_prompt = load_base_prompt_template_yaml(base_prompt_yaml_path)
 
     original_lua = original_data.get("lua_code", "")
+    particle_json = original_data.get("particle_json", [])
     object_name = original_data.get("object", "Unknown")
 
-    prompt = f"The current object is: {object_name}\n\nOriginal Lua Code:\n{original_lua}\n\nEdit Instruction:\n{object_prompt.strip()}"
+    prompt = (
+        f"The current object is: {object_name} (don't change it)\n\n"
+        f"Original Lua Code:\n{original_lua}\n\n"
+        f"Original Particle Effects:\n{json.dumps(particle_json, indent=2)}\n\n"
+        f"Edit Instruction:\n{object_prompt.strip()}"
+    )
 
     full_prompt = base_prompt + f"\n\n{prompt}"
     result = call_openai(full_prompt)

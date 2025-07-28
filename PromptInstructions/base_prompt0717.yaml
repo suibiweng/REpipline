@@ -25,21 +25,30 @@ prompt_template: |
   System Setup:
   - All physical objects (furniture) have colliders and rigidbodies and can detect collisions.
   - All objects support Lua scripting using:
-    • start() – for initialization
-    • update(deltaTime) – for animation/timers
-    • onCollisionEnter(other) – for collisions
-    • trigger() – explicitly called interaction
+    • start(), update(deltaTime), onCollisionEnter(other), trigger()
 
   --
 
   Allowed Lua Proxies and Helpers:
-  You may use the following registered Lua proxies and functions:
-  - transformProxy: Translate, Rotate, SetPosition, etc.
-  - rigidbodyProxy: AddForce, SetUseGravity, etc.
-  - audioSourceProxy: Play, Stop, SetVolume, SetLoop
-  - textProxy, buttonProxy, animatorProxy, particleSystemProxy
-  - activateEffect("effectName"), deactivateEffect()
-  - Vector3(x, y, z), Color(r, g, b, a), Quaternion(x, y, z, w)
+  You may use the following registered Lua proxies and helpers:
+
+  - transformProxy: GetPosition(), SetPosition(), Translate(), Rotate()
+  - gameObjectProxy: GetName(), SetName(), IsActive(), SetActive()
+  - rigidbodyProxy: AddForce(), SetVelocity(), GetVelocity(), SetUseGravity()
+  - audioSourceProxy: Play(), Stop(), Pause(), SetVolume(), SetLoop()
+  - textProxy: SetText(), GetText(), SetColor()
+  - buttonProxy: SetInteractable(), IsInteractable()
+  - particleSystemProxy: Play(), Stop(), SetLooping(), IsPlaying()
+  - animatorProxy: Play(), SetBool(), SetTrigger()
+  - collisionProxy: GetGameObject(), GetContactPoint(), GetRelativeVelocity()
+
+  Additional Helpers:
+  - activateEffect("effectName")
+  - deactivateEffect()
+  - Vector3(x, y, z)
+  - Vector2(x, y)
+  - Color(r, g, b, a)
+  - Quaternion(x, y, z, w)
 
   --
 
@@ -61,30 +70,43 @@ prompt_template: |
 
   --
 
-  Object Reference Constraints:
-  - Only refer to object names from the Physical Furniture list when checking collisions like: if other.name == "..."
-  - Do NOT invent object names.
-  - If no valid object is available, use fallback logic like: if true then
+  Parametric UI in Comment:
+  The `comment` field should include embedded interface cues such as:
+    • speed (slider)
+    • label (input box)
+    • target (dropdown: [Wall, Chair])
+    • effect (dropdown: [ExplosionFX, SmokeTrail])
+
+  Describe behaviors naturally, e.g.:
+    • “The car moves forward with speed (slider)”
+    • “When it collides with target (dropdown: [Wall, Chair]) it activates effect (dropdown: [Explosion])”
+    • “The object plays a sound and shows a particle trail”
+
+  These annotations will be parsed to generate runtime UI controls in Unity.
 
   --
 
   Particle-Only Effects:
   If the result is purely a visual particle effect (not tied to an object):
-  - "object": "" (empty string)
+  - "object": "EffectName@Effect"
   - "lua_code": "" or empty
   - "particle_json": must still be complete and valid
+  - "param_ui_lua": should be omitted
+  - "param_ui_particle": may still be included
 
   --
 
   Output Format:
   Return valid JSON using only the following keys:
 
-  {
-    "object": "ObjectName or empty string",
+  {{
+    "object": "ObjectName or EffectName@Effect",
     "lua_code": "Lua script string (escaped with \\n and \\t for JSON compatibility)",
-    "particle_json": [ { ParticleEffectDefinition(s) } ],
-    "comment": "Brief explanation of logic and design choices",
+    "particle_json": [ {{ full ParticleEffectDefinition(s) }} ],
+    "param_ui_particle": [ {{ list of UI controls for particles }} ],
+    "param_ui_lua": [ {{ list of UI controls for Lua }} ],
+    "comment": "Explanation with embedded (slider), (dropdown), etc.",
     "created_at": "YYYY-MM-DDTHH:MM:SS"
-  }
+  }}
 
   Do not include markdown, explanations outside the JSON, or multiline Lua code blocks. The "lua_code" must be escaped as a single-line JSON string.
