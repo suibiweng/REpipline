@@ -109,13 +109,6 @@ def get_session(session_id):
             "message": f"Session '{session_id}' not found."
         }), 404
 
-
-
-
-
-
-
-
 @app.route('/StoryGenerator', methods=['POST'])
 def StoryGenerator():
     StoryText = request.form.get('Story', '')
@@ -156,6 +149,46 @@ def StoryGenerator():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/ImageTo3D', methods=['POST'])
+def ImageTo3D():
+    global filemanager
+
+    # Get the string path directly instead of an uploaded file
+    RGBfile_path = request.form.get('file')  # it's a string path
+    urlid = request.form.get('URLID', 'default')
+
+    print("DrawTo3D!!!")
+    print(urlid)
+
+    folder = filemanager.get_folder(Geturlid(urlid))
+    print(folder)
+
+    # Copy the image from source path to the expected destination
+    saved_path = os.path.join(folder, f'{urlid}_2Dto3D.png')
+    shutil.copy(RGBfile_path, saved_path)
+
+    time.sleep(10)
+    print("wait!!!!!")
+
+    server_url = "http://127.0.0.1:8686/process"
+    params = {
+        "chunk_size": "49152",
+        "mc_resolution": "256",
+        "foreground_ratio": "0.65",
+        "render": "false",
+        "render_num_views": "30",
+        "no_remove_bg": "false",
+        "zip_filename": f"{urlid}_Drawing.zip",
+        "output_folder": folder,
+        "obj_filename": f"{urlid}.obj",
+        "glb_filename": f"{urlid}.glb"
+    }
+
+    requesttoReal3D(server_url, saved_path, params)
+
+    return jsonify({"status": "processing started", "input_file": RGBfile_path, "copied_to": saved_path})
+
+    requesttoReal3D(server_url, f'{urlid}_2Dto3D.png', params)
 
 
 
@@ -942,7 +975,7 @@ def save_lua_from_json(json_path, lua_save_path):
         data = json.load(f)
 
     # Extract object name and Lua code
-    object_name = data.get("object", "UnknownObject")
+    object_name = data.get("object_name", "UnknownObject")
     lua_code = data.get("lua_code", "")
 
     # Save Lua code to the specified path
@@ -1372,7 +1405,7 @@ def call_lua_generator(mode, yaml_path, object_prompt, *, scene_json=None, urlid
                 raise ValueError("scene_json and urlid are required for generate mode.")
             args = [
                 "python", "LuaGenerator.py", "generate",
-                scene_json, yaml_path, urlid, object_prompt
+                scene_json, yaml_path, urlid, object_prompt,"--update-others"
             ]
             expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
         elif mode == "modify":
@@ -1380,7 +1413,7 @@ def call_lua_generator(mode, yaml_path, object_prompt, *, scene_json=None, urlid
                 raise ValueError("existing_json is required for modify mode.")
             args = [
                 "python", "LuaGenerator.py", "modify",
-                existing_json, yaml_path, object_prompt
+                existing_json, yaml_path, object_prompt, "--update-others"
             ]
             expected_output = existing_json
         else:
@@ -1389,21 +1422,21 @@ def call_lua_generator(mode, yaml_path, object_prompt, *, scene_json=None, urlid
         result = subprocess.run(args, capture_output=True, text=True)
 
         if result.returncode == 0:
-            print("✅ Lua generation subprocess completed.")
-            print(f"📄 Output saved to: {expected_output}")
+            print(" Lua generation subprocess completed.")
+            print(f" Output saved to: {expected_output}")
 
             if(mode == "generate"):
                 shape = save_lua_from_json(expected_output, f"{urlid}.lua")
                 send_requestShapE(urlid, shape)
 
         else:
-            print("❌ Lua generation failed with return code:", result.returncode)
+            print(" Lua generation failed with return code:", result.returncode)
             print(result.stderr)
 
     except subprocess.CalledProcessError as e:
-        print("❌ Subprocess error:", e)
+        print(" Subprocess error:", e)
     except Exception as e:
-        print("❌", str(e))
+        print("", str(e))
 
 
 def call_removebg_subprocess( input_file, output_file, point_data,mask_file,urlid, threshold=0.2):

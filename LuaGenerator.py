@@ -1,9 +1,9 @@
-# LuaGenerator.py (FULL UPDATED VERSION)
 import openai  
 import os
 import json
 import yaml
 import argparse
+import base64
 from datetime import datetime
 
 # --------- Load API Key from config.json ---------
@@ -67,128 +67,122 @@ def call_openai(prompt):
         ],
         temperature=0.5
     )
-    result = response.choices[0].message.content
+    return response.choices[0].message.content
 
-    try:
-        parsed = json.loads(result)
-        assert "object" in parsed
-        assert "comment" in parsed
-        assert "created_at" in parsed
-        assert "param_ui_lua" in parsed or "param_ui_particle" in parsed
-        print("✅ GPT output includes parametric UI definitions.")
-    except Exception as e:
-        print("❌ GPT output is missing required keys or is invalid JSON:", e)
+# --------- Vision: Extract formula from image ---------
+def encode_image(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
 
-    return result
+def extract_formula_from_image(image_path, user_prompt="What is the formula in this image? Return it as LaTeX."):
+    base64_image = encode_image(image_path)
+    response = openai.ChatCompletion.create(
+        model="gpt-4-vision-preview",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                ]
+            }
+        ],
+        max_tokens=1000
+    )
+    return response["choices"][0]["message"]["content"]
 
-# --------- Main Functions ---------
-def generate_dynamic_lua(scene_json_path, base_prompt_yaml_path, urlid, object_prompt, update_others=False):
-    scene = load_scene_session(scene_json_path)
+# --------- Vision-only Dynamic Generation ---------
+def vision_only_generate(image_path, urlid):
+    formula = extract_formula_from_image(image_path)
+    object_prompt = (
+        f"Task: Given the following formula extracted from an image, create a Unity-compatible Lua + JSON configuration "
+        f"that visually simulates the concept using particle effects or object behavior.\n\n"
+        f"Formula:\n{formula.strip()}\n\n"
+        "Expected Output: A JSON with \"object\", \"comment\", \"created_at\", and either \"param_ui_lua\" or \"param_ui_particle\". "
+        "Use visual metaphors if needed."
+    )
+    result = call_openai(object_prompt)
     dynamic_folder = os.path.join("objects", urlid)
     os.makedirs(dynamic_folder, exist_ok=True)
-
-    existing_objects = load_existing_generated_objects(dynamic_folder)
-    base_prompt = load_base_prompt_template_yaml(base_prompt_yaml_path)
-    full_prompt = build_prompt(scene, existing_objects, base_prompt, object_prompt)
-    result = call_openai(full_prompt)
-
     output_path = os.path.join(dynamic_folder, f"{urlid}_DynamicCoding.json")
     with open(output_path, 'w') as f:
         f.write(result)
-    print(f"Lua JSON generated and saved to: {output_path}")
-
-    if update_others:
-        update_other_virtual_objects(scene, urlid, base_prompt_yaml_path, object_prompt)
-
-    return result
-
-def update_other_virtual_objects(scene, new_urlid, base_prompt_yaml_path, new_object_prompt):
-    for spot in scene.get("generateSpots", []):
-        other_id = spot.get("id")
-        if other_id != new_urlid:
-            obj_path = os.path.join("objects", other_id, f"{other_id}_DynamicCoding.json")
-            if os.path.exists(obj_path):
-                print(f"↪ Updating object: {other_id} in response to new object {new_urlid}...")
-                try:
-                    with open(obj_path, 'r') as f:
-                        existing_json = json.load(f)
-
-                    original_lua = existing_json.get("lua_code", "")
-                    object_name = existing_json.get("object", other_id)
-                    old_comment = existing_json.get("comment", "")
-
-                    object_summary = f"Existing object: {object_name}\nLua Code:\n{original_lua}\nComment:\n{old_comment}"
-                    update_prompt = f"{object_summary}\n\nNew object added: {new_object_prompt}\nPlease revise the Lua code of {object_name} if needed."
-
-                    base_prompt = load_base_prompt_template_yaml(base_prompt_yaml_path)
-                    full_prompt = build_prompt(scene, [], base_prompt, update_prompt)
-                    result = call_openai(full_prompt)
-
-                    updated_data = json.loads(result)
-                    updated_data["created_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-                    with open(obj_path, "w") as f:
-                        json.dump(updated_data, f, indent=2)
-                    print(f"✅ Updated: {other_id}")
-                except Exception as e:
-                    print(f"⚠️ Failed to update {other_id}: {e}")
-
-def modify_dynamic_lua(existing_json_path, base_prompt_yaml_path, object_prompt, update_others=False):
-    with open(existing_json_path, 'r') as f:
-        original_data = json.load(f)
-
-    base_prompt = load_base_prompt_template_yaml(base_prompt_yaml_path)
-
-    original_lua = original_data.get("lua_code", "")
-    particle_json = original_data.get("particle_json", [])
-    object_name = original_data.get("object", "Unknown")
-
-    prompt = (
-        f"The current object is: {object_name} (don't change it)\n\n"
-        f"Original Lua Code:\n{original_lua}\n\n"
-        f"Original Particle Effects:\n{json.dumps(particle_json, indent=2)}\n\n"
-        f"Edit Instruction:\n{object_prompt.strip()}"
-    )
-
-    full_prompt = base_prompt + f"\n\n{prompt}"
-    result = call_openai(full_prompt)
-
-    with open(existing_json_path, 'w') as f:
-        f.write(result)
-    print(f"Modified Lua JSON overwritten to: {existing_json_path}")
-
-    if update_others:
-        urlid = os.path.basename(existing_json_path).split("_")[0]
-        scene_path = f"{urlid}_scene.json"
-        if os.path.exists(scene_path):
-            scene = load_scene_session(scene_path)
-            update_other_virtual_objects(scene, urlid, base_prompt_yaml_path, object_prompt)
-        else:
-            print(f"⚠️ Cannot update others: Scene file not found for {urlid}")
-
+    print(f"[✓] Saved to {output_path}")
     return result
 
 # --------- CLI Entry Point ---------
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate or modify Lua behavior using OpenAI.")
+    parser = argparse.ArgumentParser(description="Lua Generator CLI")
     subparsers = parser.add_subparsers(dest="mode", required=True)
 
     gen_parser = subparsers.add_parser("generate")
-    gen_parser.add_argument("scene_json", help="Path to scene_session.json")
-    gen_parser.add_argument("prompt_yaml", help="Path to base_prompt.yaml")
-    gen_parser.add_argument("urlid", help="URL ID used to determine output path")
-    gen_parser.add_argument("object_prompt", help="Prompt describing the object to generate")
-    gen_parser.add_argument("--update-others", action="store_true", help="Update other virtual objects if needed")
+    gen_parser.add_argument("scene_json")
+    gen_parser.add_argument("prompt_yaml")
+    gen_parser.add_argument("urlid")
+    gen_parser.add_argument("object_prompt")
+    gen_parser.add_argument("--update-others", action="store_true")
 
     mod_parser = subparsers.add_parser("modify")
-    mod_parser.add_argument("existing_json", help="Path to existing DynamicCoding.json to be modified")
-    mod_parser.add_argument("prompt_yaml", help="Path to base_prompt.yaml")
-    mod_parser.add_argument("object_prompt", help="Prompt describing the modification")
-    mod_parser.add_argument("--update-others", action="store_true", help="Update other virtual objects if needed")
+    mod_parser.add_argument("existing_json")
+    mod_parser.add_argument("prompt_yaml")
+    mod_parser.add_argument("object_prompt")
+    mod_parser.add_argument("--update-others", action="store_true")
+
+    vision_parser = subparsers.add_parser("vision")
+    vision_parser.add_argument("image_path")
+    vision_parser.add_argument("--prompt", default="What is the formula in this image? Return it as LaTeX.")
+    vision_parser.add_argument("--scene_json")
+    vision_parser.add_argument("--prompt_yaml")
+    vision_parser.add_argument("--urlid")
+    vision_parser.add_argument("--update-others", action="store_true")
+
+    vision_only_parser = subparsers.add_parser("vision-generate")
+    vision_only_parser.add_argument("image_path")
+    vision_only_parser.add_argument("urlid")
 
     args = parser.parse_args()
 
     if args.mode == "generate":
-        generate_dynamic_lua(args.scene_json, args.prompt_yaml, args.urlid, args.object_prompt, args.update_others)
+        scene = load_scene_session(args.scene_json)
+        folder = os.path.join("objects", args.urlid)
+        os.makedirs(folder, exist_ok=True)
+        existing = load_existing_generated_objects(folder)
+        base = load_base_prompt_template_yaml(args.prompt_yaml)
+        full_prompt = build_prompt(scene, existing, base, args.object_prompt)
+        result = call_openai(full_prompt)
+        with open(os.path.join(folder, f"{args.urlid}_DynamicCoding.json"), 'w') as f:
+            f.write(result)
+
     elif args.mode == "modify":
-        modify_dynamic_lua(args.existing_json, args.prompt_yaml, args.object_prompt, args.update_others)
+        with open(args.existing_json, 'r') as f:
+            original_data = json.load(f)
+        base_prompt = load_base_prompt_template_yaml(args.prompt_yaml)
+        prompt = (
+            f"The current object is: {original_data.get('object_name', 'Unknown')} (don't change it)\n\n"
+            f"Original Lua Code:\n{original_data.get('lua_code', '')}\n\n"
+            f"Original Particle Effects:\n{json.dumps(original_data.get('particle_json', []), indent=2)}\n\n"
+            f"Edit Instruction:\n{args.object_prompt.strip()}"
+        )
+        full_prompt = base_prompt + "\n\n" + prompt
+        result = call_openai(full_prompt)
+        with open(args.existing_json, 'w') as f:
+            f.write(result)
+
+    elif args.mode == "vision":
+        if args.scene_json and args.prompt_yaml and args.urlid:
+            formula = extract_formula_from_image(args.image_path, args.prompt)
+            object_prompt = f"The extracted formula is:\n{formula.strip()}\n\nVisualize this in Unity using Lua/particles."
+            scene = load_scene_session(args.scene_json)
+            folder = os.path.join("objects", args.urlid)
+            os.makedirs(folder, exist_ok=True)
+            existing = load_existing_generated_objects(folder)
+            base = load_base_prompt_template_yaml(args.prompt_yaml)
+            full_prompt = build_prompt(scene, existing, base, object_prompt)
+            result = call_openai(full_prompt)
+            with open(os.path.join(folder, f"{args.urlid}_DynamicCoding.json"), 'w') as f:
+                f.write(result)
+        else:
+            print(extract_formula_from_image(args.image_path, args.prompt))
+
+    elif args.mode == "vision-generate":
+        vision_only_generate(args.image_path, args.urlid)

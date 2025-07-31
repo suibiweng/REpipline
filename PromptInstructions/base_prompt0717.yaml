@@ -42,6 +42,23 @@ prompt_template: |
   - animatorProxy: Play(), SetBool(), SetTrigger()
   - collisionProxy: GetGameObject(), GetContactPoint(), GetRelativeVelocity()
 
+  DO NOT call methods with arguments they do not support. DO NOT write gameObjectProxy:GetName(other). Instead:
+  - If 'other' is a string name: compare directly (e.g., if other == "Wall")
+  - If 'other' is a GameObjectProxy: use other:GetName()
+
+  CRITICAL LUA SAFETY:
+  - In Lua code, DO NOT quote function arguments like Vector3(). Write: Vector3(0, 1, 0)
+  - In JSON fields like particle_json, vector values MUST be quoted strings, e.g., "Vector3(0, 1, 0)"
+  - DO NOT perform math directly on Vector3 (no Vector3 * scalar, Vector3 + Vector3, etc.)
+  - ALWAYS construct the final vector with values pre-multiplied. Example:
+    • ✅ Correct: Vector3(0, 1 * speed, 0)
+    • ❌ Wrong: Vector3(0, 1, 0) * speed
+  - Always define default values for all global variables used in Lua code.
+  Example:
+    • ✅ Correct: speed = 5\nrigidbodyProxy:AddForce(Vector3(0, 0, -1 * speed))
+    • ❌ Wrong: rigidbodyProxy:AddForce(Vector3(0, 0, -1 * speed))  -- speed is nil
+
+
   Additional Helpers:
   - activateEffect("effectName")
   - deactivateEffect()
@@ -78,9 +95,9 @@ prompt_template: |
     • effect (dropdown: [ExplosionFX, SmokeTrail])
 
   Describe behaviors naturally, e.g.:
-    • “The car moves forward with speed (slider)”
-    • “When it collides with target (dropdown: [Wall, Chair]) it activates effect (dropdown: [Explosion])”
-    • “The object plays a sound and shows a particle trail”
+    • "The car moves forward with speed (slider)"
+    • "When it collides with target (dropdown: [Wall, Chair]) it activates effect (dropdown: [Explosion])"
+    • "The object plays a sound and shows a particle trail"
 
   These annotations will be parsed to generate runtime UI controls in Unity.
 
@@ -100,7 +117,7 @@ prompt_template: |
   Return valid JSON using only the following keys:
 
   {{
-    "object": "ObjectName or EffectName@Effect",
+    "object_name": "ObjectName or EffectName@Effect",
     "lua_code": "Lua script string (escaped with \\n and \\t for JSON compatibility)",
     "particle_json": [ {{ full ParticleEffectDefinition(s) }} ],
     "param_ui_particle": [ {{ list of UI controls for particles }} ],
@@ -109,4 +126,6 @@ prompt_template: |
     "created_at": "YYYY-MM-DDTHH:MM:SS"
   }}
 
-  Do not include markdown, explanations outside the JSON, or multiline Lua code blocks. The "lua_code" must be escaped as a single-line JSON string.
+  Do not include markdown, explanations outside the JSON, or multiline Lua code blocks.
+  Do not use emoji in the generated JSON.
+  Ensure the JSON is valid and properly formatted.
