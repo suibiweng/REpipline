@@ -1,3 +1,4 @@
+from click import prompt
 from flask import Flask, request, jsonify ,send_from_directory
 from PIL import Image, ImageDraw
 import os
@@ -178,7 +179,7 @@ def ImageTo3D():
         "render": "false",
         "render_num_views": "30",
         "no_remove_bg": "false",
-        "zip_filename": f"{urlid}_Drawing.zip",
+        "zip_filename": f"{urlid}_2Dto3D.zip",
         "output_folder": folder,
         "obj_filename": f"{urlid}.obj",
         "glb_filename": f"{urlid}.glb"
@@ -295,7 +296,7 @@ def command():
             yaml_path=f"./PromptInstructions/base_prompt0717.yaml",
             object_prompt=prompt,
             scene_json=f"{session_id}_scene.json",
-            urlid=urlid
+            urlid=urlid,command="DynamicCoding"
         )
 
             print("session_id is not empty")
@@ -308,6 +309,37 @@ def command():
 
         
         return jsonify({"message": "DynamicCoding"}), 200
+        
+    if command == "DynamicCodingWithDrawing":
+        print("p2play")
+        print(prompt)
+        print(folder)
+        print(urlid)
+        if(session_id!=""):
+            
+            call_lua_generator(
+            mode="generate",
+            yaml_path=f"./PromptInstructions/base_prompt0717.yaml",
+            object_prompt=prompt,
+            scene_json=f"{session_id}_scene.json",
+            urlid=urlid,command=command
+        )
+
+            print("session_id is not empty")
+        else:
+            print("session_id is empty")
+            # session_id = IDGenerator.generate_id()
+            # print("New session_id generated:", session_id)
+            call_OpenAI_script(prompt, f"{folder}/{urlid}_DynamicCoding.json",command+"2",urlid)
+
+
+        
+        return jsonify({"message": "DynamicCoding"}), 200
+        
+
+
+
+
     
     if command == "ModifyDynamicCoding":
         print("p2play")
@@ -319,11 +351,36 @@ def command():
                 mode="modify",
                 yaml_path=f"./PromptInstructions/base_prompt0717.yaml",
                 object_prompt=prompt,
-                existing_json_path=f"{folder}/{urlid}_DynamicCoding.json"
+                existing_json=f"{folder}/{urlid}_DynamicCoding.json",command=command
             )
             print("session_id is not empty")
         
         return jsonify({"message": "ModifyDynamicCoding"}), 200
+    
+
+
+
+        
+    if command == "Luagoterror":
+        print("p2play")
+        print(prompt)
+        print(folder)
+        print(urlid)
+        if (session_id != ""):
+            call_lua_generator(
+                mode="error",
+                yaml_path="./PromptInstructions/base_prompt0717.yaml",  # ignored in error mode
+                object_prompt=prompt,  # treat prompt as error_text
+                urlid=urlid,
+                command=command
+            )
+        print("session_id is not empty")
+
+        return jsonify({"message": "Luagoterror"}), 200
+
+
+
+    
      
     if command == "ChangeTexture":
          print( urlid+"Change Texture to"+prompt)
@@ -464,10 +521,40 @@ def EraseMaskCreate():
 
 
 
+# Optional: override defaults the script uses (keep empty to use script defaults)
+SESSIONS_DIR = r""
+OBJECTS_DIR  = r"\objects"
+PACKAGES_DIR = r"\packages"
+
+@app.post("/package_session")
+def package_session():
+    data = request.get_json(force=True) or {}
+    session_id = (data.get("session_id") or "").strip()
+    if not session_id:
+        return jsonify({"ok": False, "error": "session_id is required"}), 400
+
+    cmd = [
+        "python",
+        "package_session_folder.py",
+        "--session-id", session_id,
+        "--sessions-dir", SESSIONS_DIR,
+        "--objects-dir", OBJECTS_DIR,
+        "--packages-dir", PACKAGES_DIR,
+    ]
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    if proc.returncode != 0:
+        err = proc.stderr.strip() or proc.stdout.strip()
+        return jsonify({"ok": False, "error": f"packager failed ({proc.returncode}): {err}"}), 500
+
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return jsonify({"ok": False, "error": "Non-JSON output from packager"}), 500
+
+    return jsonify(payload), 200
 
 
-    
-        
 
 
 @app.route('/upload', methods=['POST'])
@@ -1387,17 +1474,27 @@ def removebg_with_sam(input_file, output_file, point_data, threshold=0.5):
         return None
     
 
-def call_lua_generator(mode, yaml_path, object_prompt, *, scene_json=None, urlid=None, existing_json=None):
+def call_lua_generator(
+    mode,
+    yaml_path,
+    object_prompt,
+    *,
+    scene_json=None,
+    urlid=None,
+    existing_json=None,
+    command=None
+):
     """
-    Calls LuaGenerator.py in either 'generate' or 'modify' mode.
+    Calls LuaGenerator.py in 'generate', 'modify', or 'error' mode.
 
     Parameters:
-        mode: "generate" or "modify"
-        yaml_path: path to base_prompt.yaml
-        object_prompt: the user prompt to drive generation/modification
+        mode: "generate", "modify", or "error"
+        yaml_path: path to base_prompt.yaml (ignored in 'error' mode)
+        object_prompt: user prompt (ignored in 'error' mode)
         scene_json: required for 'generate' mode
-        urlid: required for 'generate' mode
+        urlid: required for 'generate' and 'error' modes
         existing_json: required for 'modify' mode
+        command: optional; if "DynamicCoding", post-processes Lua for generate mode
     """
     try:
         if mode == "generate":
@@ -1405,9 +1502,10 @@ def call_lua_generator(mode, yaml_path, object_prompt, *, scene_json=None, urlid
                 raise ValueError("scene_json and urlid are required for generate mode.")
             args = [
                 "python", "LuaGenerator.py", "generate",
-                scene_json, yaml_path, urlid, object_prompt,"--update-others"
+                scene_json, yaml_path, urlid, object_prompt
             ]
             expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
+
         elif mode == "modify":
             if not existing_json:
                 raise ValueError("existing_json is required for modify mode.")
@@ -1416,27 +1514,40 @@ def call_lua_generator(mode, yaml_path, object_prompt, *, scene_json=None, urlid
                 existing_json, yaml_path, object_prompt, "--update-others"
             ]
             expected_output = existing_json
+
+        elif mode == "error":
+            if not urlid:
+                raise ValueError("urlid is required for error mode.")
+            args = [
+                "python", "LuaGenerator.py", "error",
+                urlid, "--error-text", object_prompt  # reuse object_prompt to pass error description
+            ]
+            expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
+
         else:
-            raise ValueError("mode must be either 'generate' or 'modify'")
+            raise ValueError("mode must be 'generate', 'modify', or 'error'")
 
         result = subprocess.run(args, capture_output=True, text=True)
 
-        if result.returncode == 0:
-            print(" Lua generation subprocess completed.")
-            print(f" Output saved to: {expected_output}")
+        print("LuaGenerator.py stdout:\n", result.stdout)
+        print("LuaGenerator.py stderr:\n", result.stderr)
 
-            if(mode == "generate"):
+        if result.returncode == 0:
+            print("Lua generation subprocess completed.")
+            print(f"Output saved to: {expected_output}")
+
+            # Post-processing ONLY for generate mode
+            if mode == "generate" and command == "DynamicCoding":
                 shape = save_lua_from_json(expected_output, f"{urlid}.lua")
                 send_requestShapE(urlid, shape)
-
         else:
-            print(" Lua generation failed with return code:", result.returncode)
-            print(result.stderr)
+            print("Lua generation failed with return code:", result.returncode)
 
     except subprocess.CalledProcessError as e:
-        print(" Subprocess error:", e)
+        print("Subprocess error:", e)
     except Exception as e:
-        print("", str(e))
+        print(str(e))
+
 
 
 def call_removebg_subprocess( input_file, output_file, point_data,mask_file,urlid, threshold=0.2):

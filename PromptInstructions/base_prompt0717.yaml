@@ -9,29 +9,57 @@ prompt_template: |
   Scene Context:
   - Premise: {premise}
   - Additional Detail: {prompt}
-  - Physical Furniture in Scene: [{furniture}]
+  - "SceneObjects": [{scene_objects}]  # Real, pre-existing Unity objects (non-movable by generated code). See schema below.
   - Virtual Objects in Scene: [{generate_spots}]
+
+  SceneObjects Schema (read-only for transforms):
+  - Each entry has:
+      {{
+        "id": "<string or empty>",
+        "name": "<Unity Scene object name>",
+        "position": {{ "x": <float>, "y": <float>, "z": <float> }},
+        "rotation": {{ "x": <float>, "y": <float>, "z": <float> }}
+      }}
+  - Always refer to a SceneObject by its exact "name" for comparisons and lookups.
+  - Do not use "id" for any logic or naming in Lua.
+
+  SceneObjects Prompt Tag Rule:
+  - Any prompt that begins with: [This is a real object in the space] indicates the subject is a SceneObject.
+  - SceneObjects are real, physical objects and must not have their size, position, rotation, or physics altered by the generated Lua.
+  - For SceneObjects, generated Lua should:
+      • Attach/trigger particle effects on them.
+      • Optionally align effects to their current transform (GetPosition/GetRotation only).
+      • Never call SetPosition, SetScale, Rotate, Translate, AddForce, or SetVelocity on them.
+  - Always use the SceneObjects entry "name" (not id) for comparisons and references.
 
   --
 
   Existing Generated Objects:
   The following virtual or dynamic objects already exist in the scene. Consider their behavior and avoid duplicating effects or interaction logic.
-  You may reference them only if they appear in the furniture or generateSpots lists.
+  You may reference them only if they appear in the SceneObjects or generate_spots lists.
 
   {existing_objects}
 
   --
 
   System Setup:
-  - All physical objects (furniture) have colliders and rigidbodies and can detect collisions.
+  - All SceneObjects exist physically in the scene and can participate in collisions.
   - All objects support Lua scripting using:
     • start(), update(deltaTime), onCollisionEnter(other), trigger()
 
   --
 
-  Allowed Lua Proxies and Helpers:
-  You may use the following registered Lua proxies and helpers:
+  SceneObjects (Real Objects) Constraints:
+  - Do NOT change transform on any name listed in "SceneObjects".
+  - Do NOT apply physics to any "SceneObjects".
+  - Allowed on "SceneObjects":
+    • Attach/activate/deactivate particle effects.
+    • Read transform (GetPosition/GetRotation) to align particle effects.
+    • Trigger effects in response to user/object interactions.
 
+  --
+
+  Allowed Lua Proxies and Helpers:
   - transformProxy: GetPosition(), SetPosition(), Translate(), Rotate()
   - gameObjectProxy: GetName(), SetName(), IsActive(), SetActive()
   - rigidbodyProxy: AddForce(), SetVelocity(), GetVelocity(), SetUseGravity()
@@ -42,21 +70,97 @@ prompt_template: |
   - animatorProxy: Play(), SetBool(), SetTrigger()
   - collisionProxy: GetGameObject(), GetContactPoint(), GetRelativeVelocity()
 
-  DO NOT call methods with arguments they do not support. DO NOT write gameObjectProxy:GetName(other). Instead:
-  - If 'other' is a string name: compare directly (e.g., if other == "Wall")
+  Proxy Method Usage Rules:
+  - Do NOT call GetGameObject() on GameObjectProxy. Only CollisionProxy implements GetGameObject().
+  - Never assume getters like GetRigidbody(), GetTransform() exist on proxies. Use only the registered global getters:
+  • rigidbodyProxy = GetRigidbodyProxy()
+  • transformProxy = GetTransformProxy()
+  • (If provided) gameObjectProxy = GetGameObjectProxy()
+  - Do NOT chain unknown getters (e.g., foo:GetRigidbody()). Always call methods on the proxy returned by the global getter.
+  - For name comparisons, use:
+  • if other.GetName ~= nil then name = other:GetName() end
+  • else if other.GetGameObject ~= nil then name = other:GetGameObject():GetName() end
+  - Proxies are injected as globals (transformProxy, rigidbodyProxy, ...). Do NOT call GetRigidbodyProxy() or GetTransformProxy() unless explicitly provided. Prefer using the injected globals directly.
+  - onCollisionEnter(other): 'other' may be a string name. Handle strings by using them directly; only call :GetName() when 'other' is a proxy.
+  - Prefer numeric overloads for physics: rigidbodyProxy:AddForce(x,y,z), SetVelocity(x,y,z).
+
+
+
+
+
+  DO NOT call methods with arguments they do not support.
+  - If 'other' is a string name: compare directly (e.g., if other == "WALL_FACE")
   - If 'other' is a GameObjectProxy: use other:GetName()
 
+  --
+
+  Object Name Resolution (strict):
+  - "object_name" must NEVER be empty, auto-generated, or a UUID/hash-like value.
+  - If the prompt begins with "[This is a real object in the space]":
+    - Resolve the target from "SceneObjects" and set "object_name" to the exact SceneObjects.name.
+    - If no exact name match exists, return an error in "comment" and do not fabricate a name.
+  - Otherwise (virtual/generated object):
+    - Set "object_name" to the trimmed prompt text exactly as written (preserve capitalization).
+    - Do not prepend/append IDs, timestamps, or random strings.
+  - If the result is particle-only, use "<EffectName>@Effect".
+  - Trim leading/trailing whitespace; collapse internal multiple spaces.
+  - Reject GUID/timestamp patterns and replace with a correct name per above rules.
+
+  --
+
+  Collision Argument Handling:
+  - The 'other' argument in onCollisionEnter can be a GameObjectProxy or a CollisionProxy.
+  - Always include this helper in lua_code:
+
+    function safe_get_name(other)
+        if other == nil then return nil end
+        if other.GetName ~= nil then return other:GetName() end
+        if other.GetGameObject ~= nil then
+            local go = other:GetGameObject()
+            if go ~= nil and go.GetName ~= nil then return go:GetName() end
+        end
+        return nil
+    end
+
+  --
+
   CRITICAL LUA SAFETY:
+  - Every variable must be declared as a global (no local variables allowed).
   - In Lua code, DO NOT quote function arguments like Vector3(). Write: Vector3(0, 1, 0)
-  - In JSON fields like particle_json, vector values MUST be quoted strings, e.g., "Vector3(0, 1, 0)"
-  - DO NOT perform math directly on Vector3 (no Vector3 * scalar, Vector3 + Vector3, etc.)
-  - ALWAYS construct the final vector with values pre-multiplied. Example:
-    • ✅ Correct: Vector3(0, 1 * speed, 0)
-    • ❌ Wrong: Vector3(0, 1, 0) * speed
+  - In JSON fields like particle_json, vector values MUST be quoted strings.
+  - DO NOT perform math directly on Vector3.
+  - Always pre-multiply values in constructors: Vector3(0, 1 * speed, 0)
   - Always define default values for all global variables used in Lua code.
-  Example:
-    • ✅ Correct: speed = 5\nrigidbodyProxy:AddForce(Vector3(0, 0, -1 * speed))
-    • ❌ Wrong: rigidbodyProxy:AddForce(Vector3(0, 0, -1 * speed))  -- speed is nil
+
+  Global Declarations & Naming (strict):
+  - All variables must be GLOBAL (no 'local' anywhere). Declare globals at the very top with safe defaults:
+    • speed = 0, bounce_force = 0
+    • transformProxy = nil, gameObjectProxy = nil, rigidbodyProxy = nil
+    • audioSourceProxy = nil, textProxy = nil, buttonProxy = nil, particleSystemProxy = nil, animatorProxy = nil
+  - Use ONLY these canonical proxy names in Lua: transformProxy, gameObjectProxy, rigidbodyProxy, audioSourceProxy, textProxy, buttonProxy, particleSystemProxy, animatorProxy.
+  - NEVER create globals with engine-like names (e.g., rigidbody, transform, Rigidbody, Transform, gameObject). Always use the '*Proxy' suffix.
+  - Getters must be called inside start() and assigned to the canonical globals:
+    • rigidbodyProxy = GetRigidbodyProxy()
+    • transformProxy = GetTransformProxy()
+  - Do NOT invent or chain getters on proxies (e.g., do NOT write foo:GetRigidbody()).
+  - Nil-safety: guard every proxy call, e.g.:
+    • if rigidbodyProxy ~= nil and rigidbodyProxy.SetUseGravity ~= nil then rigidbodyProxy:SetUseGravity(true) end
+  - Format self-check (generator requirement):
+    • lua_code declares the canonical globals at top and uses 'rigidbodyProxy' (not 'rigidbody').
+    • No 'local' declarations exist anywhere.
+
+  Getter & Constructor Guards (required):
+  - Before calling any global getter (e.g., GetRigidbodyProxy, GetTransformProxy), check it is a function:
+  • if type(GetRigidbodyProxy) == "function" then rigidbodyProxy = GetRigidbodyProxy() else print("Warning: GetRigidbodyProxy not available") end
+  - Never call Vector3(...) unless Vector3 is a function. Include this helper and use it for all vectors:
+  function V3(x,y,z)
+    if type(Vector3) == "function" then return Vector3(x,y,z) end
+    return nil
+  end
+  - Only pass a vector to AddForce/SetVelocity if V3(...) returned non-nil. Otherwise skip safely.
+
+
+
 
 
   Additional Helpers:
@@ -70,20 +174,8 @@ prompt_template: |
   --
 
   Particle Effects:
-  Each effect must define:
-  - effectName
-  - duration
-  - startColor (RGBA)
-  - startSize
-  - startSpeed
-  - maxParticles
-  - shape
-  - emissionRate
-  - lifetime
-
-  Optional:
-  - velocityOverLifetime
-  - colorOverLifetime
+  - effectName, duration, startColor, startSize, startSpeed, maxParticles, shape, emissionRate, lifetime
+  - Optional: velocityOverLifetime, colorOverLifetime
 
   --
 
@@ -91,31 +183,82 @@ prompt_template: |
   The `comment` field should include embedded interface cues such as:
     • speed (slider)
     • label (input box)
-    • target (dropdown: [Wall, Chair])
+    • target (dropdown: [Scene object names and virtual objects])
     • effect (dropdown: [ExplosionFX, SmokeTrail])
 
   Describe behaviors naturally, e.g.:
-    • "The car moves forward with speed (slider)"
-    • "When it collides with target (dropdown: [Wall, Chair]) it activates effect (dropdown: [Explosion])"
-    • "The object plays a sound and shows a particle trail"
+    • "Attach a spark effect to Scene object 'CEILING' and play it on collision."
+    • "When it collides with target (dropdown: [WALL_FACE, CHAIR]) it activates effect (dropdown: [Explosion])."
+    • "Do not move/scale SceneObjects; only attach and play particle effects."
+
+
+  - When referencing any tunable parameter in the "comment" prose, always use the **exact key string** from either:
+  1. The Lua variable name in `lua_code`, or
+  2. The `key` field in `param_ui_lua` or `param_ui_particle`.
+  Example: use `bounce_force` instead of "force" if the Lua code variable is `bounce_force`.
+
+  - Use one of the two parseable formats for every adjustable parameter:
+  1. `<key> (slider: <min>-<max>)`
+     Example: `bounce_force (slider: 0-20)`
+  2. `(slider: <key>, <min>-<max>)`
+     Example: `(slider: bounce_force, 0-20)`
+
+  - For dropdowns:
+  - `<key> (dropdown: [OptionA, OptionB])`
+  - `(dropdown: [OptionA, OptionB])` if no key.
+
+  - For input boxes:
+  - `<key> (input box)`
+
+  - For particle parameters, use the exact property name from Unity's ParticleSystem API (e.g., `startSpeed`, `startSize`, `startColor`) and format them the same way.
+  Example: `startSpeed (slider: 0-10)`
+
+  - If you want the UI label to be more human-friendly but still use the exact key in the prose, also include a `"label"` field in the `param_ui_lua` or `param_ui_particle` JSON.
+
+
 
   These annotations will be parsed to generate runtime UI controls in Unity.
+
+
+  Parametric UI Generation Rules:
+    - Always generate `param_ui_lua` entries for any top-level Lua variables declared before `start()` that are numeric, boolean, or string, even if not explicitly mentioned in the comment.
+      • Numeric → Slider with reasonable range (default from code if available, else midpoint).
+      • Boolean → Toggle (default from code if available, else false).
+      • String  → InputField (default from code if available, else empty string).
+    - **For `param_ui_lua`, each entry MUST use the key "name" (not "variable").**  ← ADDED
+    - If the comment includes UI cues (slider, toggle, dropdown, input box), use these cues to set `type`, `min`, `max`, `default`, and `options` exactly.
+    - Always include `target` (Dropdown) if collisions/interactions reference a specific object name in the Lua or comment; populate options from known SceneObjects and generated object names in context.
+    - For `param_ui_particle`:
+      • Ensure every control's `effectName` exactly matches one in `particle_json`.
+      • Label format: "EffectName: key".
+      • Include sliders for duration, startSpeed, startSize, and lifetime unless prompt explicitly excludes them.
+      • If only one particle effect exists, reuse that effectName for all particle controls.
+    - No duplicate `param_ui` entries — if a key is already added, update its range/default instead.
+    - All numeric min, max, and default values must be numbers (not strings), and default must be within the min/max range.
+
 
   --
 
   Particle-Only Effects:
-  If the result is purely a visual particle effect (not tied to an object):
-  - "object": "EffectName@Effect"
+  - "object_name": "EffectName@Effect"
   - "lua_code": "" or empty
-  - "particle_json": must still be complete and valid
-  - "param_ui_lua": should be omitted
-  - "param_ui_particle": may still be included
+  - "particle_json": valid and complete
+
+  --
+
+  Strict Output Contract:
+  - Return ONLY a single JSON object.
+  - The first character must be '{' and the last must be '}'.
+  - No text, labels, or code fences before or after the JSON.
+  - No markdown, no explanations!!!, no "Here is..." text.
+  - If any required value is unknown, choose a safe default of the correct type.
+  - Only output the final JSON object.
+  - Do not include the prompt, premise, or scene description in the output.
+  - no additional text or explanations.
 
   --
 
   Output Format:
-  Return valid JSON using only the following keys:
-
   {{
     "object_name": "ObjectName or EffectName@Effect",
     "lua_code": "Lua script string (escaped with \\n and \\t for JSON compatibility)",
@@ -125,7 +268,3 @@ prompt_template: |
     "comment": "Explanation with embedded (slider), (dropdown), etc.",
     "created_at": "YYYY-MM-DDTHH:MM:SS"
   }}
-
-  Do not include markdown, explanations outside the JSON, or multiline Lua code blocks.
-  Do not use emoji in the generated JSON.
-  Ensure the JSON is valid and properly formatted.
