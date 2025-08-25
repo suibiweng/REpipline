@@ -1,0 +1,744 @@
+# base_prompt.yaml
+
+meta:
+  version: 2025-08-17
+  notes:
+    - Output MUST be a single JSON object, no markdown fences.
+    - ASCII keys only. No emojis. No trailing commas.
+    - Numbers must be numbers (not strings).
+    - Dates use ISO-8601 UTC (e.g., "2025-08-17T09:32:10Z").
+
+prompt_template: |
+  Task: Generate a Unity-compatible JSON configuration that defines either:
+
+  1. An interactive object using Lua scripting and optional particle effects, or
+  2. A standalone particle effect with no associated object.
+
+  --
+
+  Scene Context:
+  - Premise: {premise}
+  - Additional Detail: {prompt}
+  - "SceneObjects": [{scene_objects}]  # Real, pre-existing Unity objects (non-movable by generated code). See schema below.
+  - Virtual Objects in Scene: [{generate_spots}]
+
+  GenerateSpots Schema (virtual objects):
+  - Each entry has:
+      {{
+        "id": "<string or empty>",
+        "gameObjectName": "<display name to use in Unity>",
+        "prompt": "<object-specific instruction text>"
+      }}
+  - Always prefer `gameObjectName` as the authoritative display name for generated objects.
+  - Do not use `id` or `sessionURLID` for naming or comparisons.
+  - Do not truncate names: if the prompt or gameObjectName is "Baseball Bat", use exactly "Baseball Bat" (not "Baseball").  # <-- INSERTED
+
+  Prompt Modes:
+  - Initial Prompt (default): The user may provide only an object name or a short description (e.g., "Baseball").
+    • Still plan and emit logic that considers all interaction channels:
+      [Object-to-Object] with other generated objects,
+      [Object-to-User] via controller (must include trigger()),
+      [Object-to-Environment] with real SceneObjects (read-only transforms).
+    • If details are missing, choose safe defaults and expose parameters in param_ui_lua so users can tune behavior.
+    • Grabbable and scalable are defaults for every generated object.
+  - Modify Prompt: The user may specify targeted changes using:
+    • [Object-to-Object]: how this object should interact with other generated objects
+    • [Object-to-User]: controller-driven actions; trigger() MUST exist; grabbable & scalable are enabled by default
+    • [Object-to-Environment]: interactions with real SceneObjects (no transform writes on SceneObjects)
+
+  --
+
+  SceneObjects Schema (read-only for transforms):
+  - Each entry has:
+      {{
+        "id": "<string or empty>",
+        "name": "<Unity Scene object name>",
+        "position": {{ "x": <float>, "y": <float>, "z": <float> }},
+        "rotation": {{ "x": <float>, "y": <float>, "z": <float> }}
+      }}
+  - Always refer to a SceneObject by its exact "name" for comparisons and lookups.
+  - Do not use "id" for any logic or naming in Lua.
+
+  SceneObjects Prompt Tag Rule:
+  - Any prompt that begins with: [This is a real object in the space] indicates the subject is a SceneObject.
+  - SceneObjects are real, physical objects and must not have their size, position, rotation, or physics altered by the generated Lua.
+  - For SceneObjects, generated Lua should:
+      • Attach/trigger particle effects on them.
+      • Optionally align effects to their current transform (GetPosition/GetRotation only).
+      • Never call SetPosition, SetScale, Rotate, Translate, AddForce, or SetVelocity on them.
+  - Always use the SceneObjects entry "name" (not id) for comparisons and references.
+  - **If the prompt specifies [Object-to-Object] interaction with this SceneObject, still generate a valid `lua_code` block with `onCollisionEnter(other)` to handle collisions (e.g. when BASEBALL hits CEILING, activateEffect("FIRE_EFFECT")).**
+
+
+  --
+
+  Existing Generated Objects:
+  The following virtual or dynamic objects already exist in the scene. Consider their behavior and avoid duplicating effects or interaction logic.
+  You may reference them only if they appear in the SceneObjects or generate_spots lists.
+
+  {existing_objects}
+
+  --
+
+  System Setup:
+  - All SceneObjects exist physically in the scene and can participate in collisions.
+  - All objects support Lua scripting using:
+    • start(), update(deltaTime), onCollisionEnter(other), trigger()
+
+  Required Lua Entrypoints (controller support):
+  - A no-argument function named `trigger()` MUST be present in every lua_code, even if it’s a no-op.
+  - `trigger()` is invoked by the host via C# (luaScript.Globals.Get("trigger")), so it MUST exist.
+  - It should be safe to call multiple times and not throw if proxies/effects are unavailable.
+  - Typical behavior: toggle state, play a particle effect, or apply a small impulse using numeric overloads.
+
+  --
+
+  SceneObjects (Real Objects) Constraints:
+  - Do NOT change transform on any name listed in "SceneObjects".
+  - Do NOT apply physics to any "SceneObjects".
+  - Allowed on "SceneObjects":
+    • Attach/activate/deactivate particle effects.
+    • Read transform (GetPosition/GetRotation) to align particle effects.
+    • Trigger effects in response to user/object interactions.
+
+  --
+
+  Allowed Lua Proxies and Helpers:
+  restrict to use only the following proxies and helpers in lua_code:
+  - transformProxy: GetPosition(), SetPosition(), Translate(), Rotate(), SetRotation(), GetRotation(), GetScale(), SetScale
+  - gameObjectProxy:
+      • GetName(), SetName(), IsActive(), SetActive(), GetTag()
+      • GetTransformProxy()
+      • GetRigidbodyProxy()
+      • GetAudioSourceProxy()
+      • GetAnimatorProxy()
+  - rigidbodyProxy:
+      • AddForce(x,y,z)
+      • AddForce(Vector3, "Mode")         # "Force","Impulse","Acceleration","VelocityChange"
+      • AddForce(x,y,z, "Mode")
+      • AddImpulse(x,y,z)
+      • SetVelocity(x,y,z), SetVelocity(Vector3)
+      • GetVelocity(), SetUseGravity(bool)
+  - audioSourceProxy: Play(), Stop(), Pause(), SetVolume(), SetLoop()
+  - textProxy: SetText(), GetText(), SetColor()
+  - buttonProxy: SetInteractable(), IsInteractable()
+  - particleSystemProxy: Play(), Stop(), SetLooping(), IsPlaying()
+  - animatorProxy: Play(stateName), SetBool(name,bool), SetTrigger(name)
+  - collisionProxy:
+      • GetGameObject()                   # returns GameObjectProxy
+      • GetRigidbodyProxy()               # other object’s Rigidbody if available
+      • GetContactPoint(), GetRelativeVelocity(), GetName()
+
+  --
+
+  Proxy Method Usage Rules:
+  - Do NOT call GetGameObject() on GameObjectProxy. Only CollisionProxy implements GetGameObject().
+  - Allowed direct getters on proxies (no other chaining is allowed):
+      • gameObjectProxy:GetTransformProxy()
+      • gameObjectProxy:GetRigidbodyProxy()
+      • gameObjectProxy:GetAudioSourceProxy()
+      • gameObjectProxy:GetAnimatorProxy()
+      • collisionProxy:GetGameObject()
+      • collisionProxy:GetRigidbodyProxy()
+  - Never invent getters not listed above. Do not chain beyond one hop (e.g., collisionProxy:GetGameObject():GetRigidbodyProxy() is allowed, but not deeper).
+  - Global getters may also be available and should be guarded:
+      • if type(GetRigidbodyProxy) == "function" then rigidbodyProxy = GetRigidbodyProxy() end
+      • if type(GetTransformProxy) == "function" then transformProxy = GetTransformProxy() end
+      • if type(GetGameObjectProxy) == "function" then gameObjectProxy = GetGameObjectProxy() end
+  - Prefer numeric physics overloads where possible:
+      • rigidbodyProxy:AddForce(x,y,z) or rigidbodyProxy:AddForce(x,y,z,"Impulse")
+      • rigidbodyProxy:AddImpulse(x,y,z)
+      • rigidbodyProxy:SetVelocity(x,y,z)
+
+
+
+  - Example: apply an upward impulse to the OTHER object on collision (works for both CollisionProxy and GameObjectProxy):
+
+    function onCollisionEnter(other)
+        -- Try CollisionProxy path first
+        if other ~= nil and other.GetRigidbodyProxy ~= nil then
+            local otherRb = other:GetRigidbodyProxy()
+            if otherRb ~= nil then
+                if otherRb.AddImpulse ~= nil then otherRb:AddImpulse(0, 5, 0)
+                elseif otherRb.AddForce ~= nil then otherRb:AddForce(0, 5, 0, "Impulse") end
+                return
+            end
+        end
+
+        -- If a GameObjectProxy was passed directly
+        if other ~= nil and other.GetRigidbodyProxy ~= nil then
+            local rb2 = other:GetRigidbodyProxy()
+            if rb2 ~= nil then
+                if rb2.AddImpulse ~= nil then rb2:AddImpulse(0, 5, 0)
+                elseif rb2.AddForce ~= nil then rb2:AddForce(0, 5, 0, "Impulse") end
+            end
+        end
+    end
+
+  Collision Argument Handling:
+  - The 'other' argument in onCollisionEnter can be a GameObjectProxy, a CollisionProxy, or a plain string name.
+  - Always include this helper in lua_code:
+
+    function safe_get_name(other)
+        if other == nil then return nil end
+        if type(other) == "string" then return other end
+        if other.GetName ~= nil then return other:GetName() end
+        if other.GetGameObject ~= nil then
+            local go = other:GetGameObject()
+            if go ~= nil and go.GetName ~= nil then return go:GetName() end
+        end
+        return nil
+    end
+
+  - Example: apply an upward impulse to the OTHER object on collision (works for both CollisionProxy and GameObjectProxy):
+
+    function onCollisionEnter(other)
+        -- Try CollisionProxy path first
+        if other ~= nil and other.GetRigidbodyProxy ~= nil then
+            local otherRb = other:GetRigidbodyProxy()
+            if otherRb ~= nil then
+                if otherRb.AddImpulse ~= nil then otherRb:AddImpulse(0, 5, 0)
+                elseif otherRb.AddForce ~= nil then otherRb:AddForce(0, 5, 0, "Impulse") end
+                return
+            end
+        end
+
+        -- If a GameObjectProxy was passed directly
+        if other ~= nil and other.GetRigidbodyProxy ~= nil then
+            local rb2 = other:GetRigidbodyProxy()
+            if rb2 ~= nil then
+                if rb2.AddImpulse ~= nil then rb2:AddImpulse(0, 5, 0)
+                elseif rb2.AddForce ~= nil then rb2:AddForce(0, 5, 0, "Impulse") end
+            end
+        end
+    end
+
+
+      Collision Name Case Rule (Lua only):
+  - In lua_code, whenever comparing names (e.g., from safe_get_name(other)) or writing string literals for name checks, use UPPERCASE_WITH_UNDERSCORES.
+  - "Example mapping: Baseball Bat → BASEBALL_BAT; Chair → CHAIR."
+
+
+  Name Tokenization & Collision Comparisons (REQUIRED):
+  - Include these helpers and use them for all comparisons:
+
+    function to_token(name)
+        if name == nil then return nil end
+        if type(name) ~= "string" then return nil end
+        name = string.gsub(name, "^%s+", "")
+        name = string.gsub(name, "%s+$", "")
+        name = string.gsub(name, "%s+", " ")
+        name = string.upper(name)
+        name = string.gsub(name, "[- ]+", "_")
+        return name
+    end
+
+    SELF_NAME_TOKEN = ""
+
+    function start()
+        if type(GetGameObjectProxy) == "function" then gameObjectProxy = GetGameObjectProxy() end
+        if type(GetTransformProxy) == "function" then transformProxy = GetTransformProxy() end
+        if type(GetRigidbodyProxy) == "function" then rigidbodyProxy = GetRigidbodyProxy() end
+        localName = nil
+        if gameObjectProxy ~= nil and gameObjectProxy.GetName ~= nil then
+            localName = gameObjectProxy:GetName()
+        end
+        if localName == nil or localName == "" then
+            localName = SELF_NAME_TOKEN
+        end
+        SELF_NAME_TOKEN = to_token(localName)
+    end
+
+    -- Example comparisons:
+    --   local t = to_token(safe_get_name(other))
+    --   if t == "BASEBALL" then ... end
+
+
+
+
+  --
+
+  Object Name Resolution (strict):
+  # Derive a candidate name without emitting it yet.
+  # Do NOT output 'derived_name' in the final JSON.
+  - Derivation order:
+      1) If Additional Detail (the user prompt) begins with "[This is a real object in the space]":
+         • Find an exact match in SceneObjects[].name and set derived_name to that name.
+         • If no match, set derived_name = "" and add a clear error to comment (do NOT fabricate a name).
+      2) Else, if any generate_spots entry semantically matches the user intent:
+         • Set derived_name = that entry's gameObjectName (prefer exact/near-exact match; if multiple, pick the one whose prompt aligns best).
+      3) Else:
+         • Set derived_name = the trimmed Additional Detail text (preserve capitalization; strip surrounding quotes; collapse multiple spaces).
+  - Particle-only:
+      • If this is a particle-only output, set derived_name = "<EffectName>@Effect" using the first effectName in particle_json.
+  - Trim:
+      • Trim leading/trailing whitespace and collapse internal runs of spaces for derived_name.
+  - No name downgrades:
+      • If the prompt indicates a longer noun phrase that contains a previously generated name (e.g., "Baseball Bat" vs "Baseball"), keep the longer phrase ("Baseball Bat").  # <-- INSERTED
+  - Multi-object disambiguation:
+      • If the resolved name duplicates an existing generated object, append a clean numeric suffix: "Name (2)", "Name (3)". Never use IDs/timestamps/hex.  # <-- INSERTED
+
+  # HARD BAN against IDs and timestamp-like strings.
+  # The model must treat these as illegal names even if they appear in context.
+  - Never set object_name to:
+      • Any SceneObjects[].id
+      • Any generate_spots[].id
+      • sessionURLID (if provided in the scene JSON)
+      • Pure timestamp/numeric IDs: ^\d{8,}$
+      • Hex-like strings (len ≥ 8): ^[0-9a-fA-F]{8,}$
+      • Mixed timestamp+hex: ^\d{8,}[0-9a-fA-F]{4,}$
+      • UUID-like: ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$
+
+  # FINAL ASSERTION (must be done immediately before emitting the JSON):
+  - Set object_name = derived_name.
+  - If object_name matches any banned pattern above, or equals any known id/sessionURLID:
+      • Re-run the derivation order (SceneObjects.name → generate_spots.gameObjectName → user prompt text) and replace object_name.
+  - If still invalid (empty or still ID-shaped) after the second pass:
+      • Set object_name = "" and write a clear error message in comment that the name could not be resolved without IDs.
+
+  # Allowed comparison sources inside Lua:
+  - Only compare names against:
+      • SceneObjects[].name  (for real objects)
+      • generate_spots[].gameObjectName  (for virtual objects)
+  - Never compare to any id, sessionURLID, or URLID-shaped token.
+
+  # Collision Name Case Rule (Lua only):  # <-- INSERTED
+  - In lua_code, whenever comparing names (e.g., from safe_get_name(other)) or writing string literals for name checks, use UPPERCASE_WITH_UNDERSCORES.  # <-- INSERTED
+  - Example mapping: "Baseball Bat" → "BASEBALL_BAT"; "Chair" → "CHAIR".  # <-- INSERTED
+  - Do not alter SceneObjects[].name in data; only normalize literals and comparisons in Lua.  # <-- INSERTED
+
+  --
+
+  --
+
+
+  Name Tokenization & Collision Comparisons (REQUIRED):  # <-- INSERTED
+  - In lua_code, normalize any name you compare into UPPERCASE_WITH_UNDERSCORES tokens.
+  - Provide these helpers and constants and USE THEM for all comparisons:
+
+    -- required: converts "Baseball Bat" -> "BASEBALL_BAT"
+    function to_token(name)
+        if name == nil then return nil end
+        if type(name) ~= "string" then return nil end
+        -- trim
+        name = string.gsub(name, "^%s+", "")
+        name = string.gsub(name, "%s+$", "")
+        -- collapse spaces
+        name = string.gsub(name, "%s+", " ")
+        -- upper and replace spaces/hyphens with underscores
+        name = string.upper(name)
+        name = string.gsub(name, "[- ]+", "_")
+        return name
+    end
+
+    -- derive a canonical token for THIS object at startup
+    SELF_NAME_TOKEN = ""
+
+  - In start(), compute SELF_NAME_TOKEN from the actual object name if available, else from the resolved object_name literal:
+
+    function start()
+        if type(GetGameObjectProxy) == "function" then gameObjectProxy = GetGameObjectProxy() end
+        if type(GetTransformProxy) == "function" then transformProxy = GetTransformProxy() end
+        if type(GetRigidbodyProxy) == "function" then rigidbodyProxy = GetRigidbodyProxy() end
+        localName = nil
+        if gameObjectProxy ~= nil and gameObjectProxy.GetName ~= nil then
+            localName = gameObjectProxy:GetName()
+        end
+        if localName == nil or localName == "" then
+            -- fallback to the JSON object_name literal injected by the host (if available via GetName or comment parsing); safe if absent
+            localName = SELF_NAME_TOKEN  -- will be re-set below if empty
+        end
+        SELF_NAME_TOKEN = to_token(localName)
+    end
+
+  - When handling collisions, ALWAYS normalize the other object's name before comparing:
+
+    function onCollisionEnter(other)
+        local n = safe_get_name(other)
+        local t = to_token(n)
+        -- Example comparisons (replace with your actual logic)
+        if t == "BASEBALL" then
+            if type(activateEffect) == "function" then activateEffect("HIT_SPARK") end
+        elseif t == "BASEBALL_BAT" then
+            if rigidbodyProxy ~= nil and rigidbodyProxy.AddForce ~= nil and type(V3) == "function" then
+                local v = V3(0, 1, 0)
+                if v ~= nil then rigidbodyProxy:AddForce(0, 1, 0) end
+            end
+        end
+    end
+
+  - NEVER compare raw names directly (e.g., other:GetName() == "Baseball Bat"). Always use tokens from to_token(...).
+
+  - When you need to compare against SceneObjects or generate_spots names, first convert those names to tokens with to_token(...) and compare tokens.
+
+  - When comparing names from safe_get_name(other) or when 'other' is a string, compare only against:
+    • SceneObjects[].name
+    • generate_spots[].gameObjectName
+    • Never compare to any `id`.
+
+  --
+
+  CRITICAL LUA SAFETY:
+  - Every variable must be declared as a global (no local variables allowed).
+  - In Lua code, DO NOT quote function arguments like Vector3(). Write: Vector3(0, 1, 0)
+  - In JSON fields like particle_json, vector values MUST be quoted strings.
+  - DO NOT perform math directly on Vector3.
+  - Always pre-multiply values in constructors: Vector3(0, 1 * speed, 0)
+  - Always define default values for all global variables used in Lua code.
+  - Do NOT include ellipses in lua_code. Absolutely forbid both "..." and the Unicode ellipsis "…". Emit complete, runnable Lua only.
+
+  Global Declarations & Naming (strict):
+  - All variables must be GLOBAL (no 'local' anywhere). Declare globals at the very top with safe defaults:
+    • speed = 0, bounce_force = 0
+    • transformProxy = nil, gameObjectProxy = nil, rigidbodyProxy = nil
+    • audioSourceProxy = nil, textProxy = nil, buttonProxy = nil, particleSystemProxy = nil, animatorProxy = nil
+  - Use ONLY these canonical proxy names in Lua: transformProxy, gameObjectProxy, rigidbodyProxy, audioSourceProxy, textProxy, buttonProxy, particleSystemProxy, animatorProxy.
+  - NEVER create globals with engine-like names (e.g., rigidbody, transform, Rigidbody, Transform, gameObject). Always use the '*Proxy' suffix.
+  - If getters are available, call them inside start() and assign to the canonical globals:
+    • if type(GetRigidbodyProxy) == "function" then rigidbodyProxy = GetRigidbodyProxy() end
+    • if type(GetTransformProxy) == "function" then transformProxy = GetTransformProxy() end
+  - Do NOT invent or chain getters on proxies (e.g., do NOT write foo:GetRigidbody()).
+  - Nil-safety: guard every proxy call, e.g.:
+    • if rigidbodyProxy ~= nil and rigidbodyProxy.SetUseGravity ~= nil then rigidbodyProxy:SetUseGravity(true) end
+  - Format self-check (generator requirement):
+    • lua_code declares the canonical globals at top and uses 'rigidbodyProxy' (not 'rigidbody').
+    • No 'local' declarations exist anywhere.
+
+  Trigger Function (required):
+  - Always include:
+    function trigger()
+      -- safe, idempotent interaction for controller input
+    end
+  - Guard all proxy/effect calls inside trigger() just like in update()/collision handlers.
+
+  Getter & Constructor Guards (required):
+  - Before calling any global getter (e.g., GetRigidbodyProxy, GetTransformProxy), check it is a function:
+    • if type(GetRigidbodyProxy) == "function" then rigidbodyProxy = GetRigidbodyProxy() else print("Warning: GetRigidbodyProxy not available") end
+  - Never call Vector3(...) unless Vector3 is a function. Include this helper and use it for all vectors:
+
+    function V3(x,y,z)
+      if type(Vector3) == "function" then return Vector3(x,y,z) end
+      return nil
+    end
+
+  - Only pass a vector to AddForce/SetVelocity if V3(...) returned non-nil. Otherwise skip safely.
+
+  Additional Helpers:
+  - activateEffect("effectName")
+  - deactivateEffect()
+  - Vector3(x, y, z)
+  - Vector2(x, y)
+  - Color(r, g, b, a)
+  - Quaternion(x, y, z, w)
+
+  Example trigger() pattern:
+  function trigger()
+    if rigidbodyProxy ~= nil and rigidbodyProxy.AddForce ~= nil then
+      rigidbodyProxy:AddForce(0, 1, 0)
+    end
+    if type(activateEffect) == "function" then activateEffect("HitEffect") end
+  end
+
+  --
+
+  Particle Effects:
+  - You may output particle effects in either format:
+    • Legacy (back-compat, simple fields only)
+    • Enhanced V2 (preferred), with Unity module blocks
+  - Legacy effect fields:
+    effectName, duration, startColor, startSize, startSpeed, maxParticles, shape, emissionRate, lifetime
+  - Enhanced V2 effect fields (all optional but recommended):
+    effectName, duration, startColor{{r,g,b,a}}, startSize, startSpeed, maxParticles, shape, emissionRate, lifetime,
+    main{{gravityModifier, simulationSpace, scalingMode, prewarm, playOnAwake}},
+    shapeModule{{type, angle, radius, arc, position{{x,y,z}}}},
+    emission{{rateOverTime, rateOverDistance, bursts[{{time,count,cycleCount,repeatInterval}}]}} ,
+    velocityOverLifetime{{enabled, space, x{{}}, y{{}}, z{{}}, orbitalY, speedModifier{{}}}},
+    colorOverLifetime{{enabled, gradient{{colorKeys[{{time,color{{r,g,b,a}}}}], alphaKeys[{{time,alpha}}]}}}},
+    sizeOverLifetime{{enabled, separateAxes, size{{}}}},
+    rotationOverLifetime{{enabled, separateAxes, z{{}}}},
+    noise{{enabled, strength, frequency, scrollSpeed, octaveCount, quality}},
+    trails{{enabled, lifetime, ratio, dieWithParticles}},
+    renderer{{renderMode, materialName, sortingFudge}}
+  - UI-safe keys for param_ui_particle (dot-keys):
+    • Booleans (toggle): main.prewarm, main.playOnAwake, noise.enabled, trails.enabled, trails.dieWithParticles
+    • Floats (slider): main.gravityModifier, emission.rateOverTime, emission.rateOverDistance, emission.bursts[0].count,
+      noise.strength, noise.frequency, noise.scrollSpeed, noise.octaveCount, trails.lifetime, trails.ratio, renderer.sortingFudge,
+      sizeOverLifetime.size.constant, rotationOverLifetime.z.constant, velocityOverLifetime.x.constant,
+      velocityOverLifetime.y.constant, velocityOverLifetime.z.constant, velocityOverLifetime.speedModifier.constant
+    • Strings (dropdown): renderer.renderMode (options = ["Billboard","StretchedBillboard","HorizontalBillboard","VerticalBillboard","Mesh"])
+  - MinMaxCurve for curve-like fields MUST be one of:
+      {{"mode":"Constant","constant":NUMBER}}
+      {{"mode":"Curve","curve":[{{"time":0.0,"value":NUMBER}}, ...]}}
+      {{"mode":"TwoConstants","constantMin":NUMBER,"constantMax":NUMBER}}
+      {{"mode":"TwoCurves","curveMin":[...],"curveMax":[...]}}
+
+  --
+
+  Particle Shooting Rule:
+  - Guns or similar objects should generate a shooting particle system.
+  - Always set: main.simulationSpace = "World".
+  - Always set: collision.enabled = true
+  - Always set: collision.sendCollisionMessages = true
+  - Always set: collision.attachRelay = true
+  - Effect should emit forward from the object’s current transform (e.g., controller forward).
+  - On collision, target object’s trigger() is invoked; shooter may define onParticleHit(name) or turn off the looping effect.
+
+
+  Parametric UI in Comment:
+  The `comment` field should include embedded interface cues such as:
+    • speed (slider)
+    • label (input box)
+    • target (dropdown: [Scene object names and virtual objects])
+    • effect (dropdown: [ExplosionFX, SmokeTrail])
+
+  Describe behaviors naturally, e.g.:
+    • "Attach a spark effect to Scene object 'CEILING' and play it on collision."
+    • "When it collides with target (dropdown: [WALL_FACE, CHAIR]) it activates effect (dropdown: [Explosion])."
+    • "Do not move/scale SceneObjects; only attach and play particle effects."
+
+  These annotations will be parsed to generate runtime UI controls in Unity.
+
+  Parametric UI Generation Rules:
+    - Always generate `param_ui_lua` entries for any top-level Lua variables declared before `start()` that are numeric, boolean, or string, even if not explicitly mentioned in the comment.
+      • Numeric → Slider with reasonable range (default from code if available, else midpoint).
+      • Boolean → Toggle (default from code if available, else false).
+      • String  → InputField (default from code if available, else empty string).
+    - For `param_ui_lua`, each item MUST use the key "name" (not "variable").
+    - If the comment includes UI cues (slider, toggle, dropdown, input box), use these cues to set `type`, `min`, `max`, `default`, and `options` exactly.
+    - Always include `target` (Dropdown) if collisions/interactions reference a specific object name in the Lua or comment; populate options from known SceneObjects and generated object names in context.
+    - For `param_ui_particle`:
+      • Ensure every control's `effectName` exactly matches one in `particle_json`.
+      • Label format: "EffectName: key".
+      • Include sliders for duration, startSpeed, startSize, and lifetime unless prompt explicitly excludes them.
+      • If only one particle effect exists, reuse that effectName for all particle controls.
+    - No duplicate `param_ui` entries — if a key is already added, update its range/default instead.
+    - All numeric min, max, and default values must be numbers (not strings), and default must be within the min/max range.
+
+  - param_ui_particle (V2):
+      • Each control must include: effectName, label, key, type, and either (min/max/default) for sliders or options for dropdowns.
+      • effectName MUST exactly match an entry in particle_json.effectName.
+      • key MUST be one of the listed UI-safe keys above.
+      • Label format: "EffectName: key".
+      • Types:
+          - Slider → numeric properties
+          - Toggle → boolean properties
+          - Dropdown → string properties
+      • No duplicates: if same key for same effect, merge ranges/default.
+
+
+  --
+
+  Particle-Only Effects:
+  - "object_name": "EffectName@Effect"
+  - "lua_code": "" or empty
+  - "particle_json": valid and complete
+
+  --
+
+  Strict Output Contract:
+  - Return ONLY a single JSON object.
+  - The first character must be '{' and the last must be '}'.
+  - No text, labels, or code fences before or after the JSON.
+  - No markdown, no explanations, no "Here is..." text.
+  - "object_name" must come from SceneObjects.name (real objects) or generate_spots.gameObjectName (virtual objects) when available; otherwise use the trimmed user prompt. Never use ids or sessionURLID.
+  - If any required value is unknown, choose a safe default of the correct type.
+  - "object_name" must never be derived from urlid, sessionURLID, file/folder names, or any *.id fields; only use SceneObjects.name, generate_spots.gameObjectName, or the user prompt text per the rules above.
+  - Do NOT emit ID-shaped strings anywhere in the JSON (including lua_code string comparisons and param_ui options).  # <-- INSERTED
+
+
+  Final Name Derivation (must run last):
+  - After composing the JSON and comment, re-derive "object_name" using this order:
+    1) If the user prompt text contains/equals a name that matches any generate_spots[].gameObjectName (case-insensitive substring), set object_name to that gameObjectName.
+    2) Else if any generate_spots[].gameObjectName is a close match for the prompt (case-insensitive equality ignoring spaces/punctuation), use that.
+    3) Else if the prompt is a single short noun phrase (e.g., "Baseball", "Baseball bat"), set object_name to the trimmed prompt text exactly.
+    4) Else leave object_name unchanged **IF** it is not ID-shaped.
+  - Absolutely forbid ID-shaped names (same ID ban as above). If object_name is ID-shaped, replace it using the first rule above that yields a non-ID name. If nothing valid can be found, use the trimmed user prompt text. Never fall back to an id.
+  - If the chosen object_name duplicates an existing generated object, append "(2)", "(3)", etc. (no IDs/timestamps).  # <-- INSERTED
+  - For Lua comparisons only, use UPPERCASE_WITH_UNDERSCORES literals derived from the chosen object_name or from generate_spots[].gameObjectName.  # <-- INSERTED
+
+
+  --
+
+  Output Format:
+
+  - Absolute Naming Rule (New Objects):
+    - Always use the provided 'gameObjectName' from the corresponding generateSpots entry as 'object_name', if available.
+    - If 'gameObjectName' is empty, extract a short noun phrase from the 'prompt'.
+    - IDs (numeric/timestamp strings) are strictly forbidden as names under any condition.
+    - Examples:
+      - If generateSpots has { "gameObjectName": "Baseball Bat" }, then "object_name" must be "Baseball Bat".
+      - If generateSpots has { "gameObjectName": "" , "prompt": "a wooden chair" }, then "object_name" must be "Wooden Chair".
+
+  {{
+    "object_name": "ObjectName or EffectName@Effect",
+    "lua_code": "Lua script string (escaped with \\n and \\t for JSON compatibility)",
+    "particle_json": [ {{ full ParticleEffectDefinition(s) }} ],
+    "param_ui_particle": [ {{ list of UI controls for particles }} ],
+    "param_ui_lua": [ {{ list of UI controls for Lua }} ],
+    "comment": "Explanation with embedded (slider), (dropdown), etc.",
+    "created_at": "YYYY-MM-DDTHH:MM:SS"
+  }}
+
+constraints:
+  object_name:
+    - Must be derived from SceneObjects.name or generate_spots.gameObjectName when available; else from user prompt.
+    - Must not be an id, sessionURLID, GUID, or timestamp-like string.
+  lua_code:
+    - Valid Lua 5.3 (MoonSharp-friendly).
+    - All variables GLOBAL (no local).
+    - Include trigger() always.
+    - No ellipses "..." or "…".
+  particle_json: |
+     - Each effect MUST be EITHER:
+        • Legacy: effectName, duration, startColor (string "r,g,b,a"), startSize, startSpeed, maxParticles, shape, emissionRate, lifetime
+        • Enhanced V2 (preferred): effectName plus any of the Enhanced V2 module blocks (main, shapeModule, emission, velocityOverLifetime, colorOverLifetime, sizeOverLifetime, rotationOverLifetime, noise, trails, renderer).
+     - For Enhanced V2, startColor MUST be an object {{"r":<num>,"g":<num>,"b":<num>,"a":<num>}}.
+     - If both Legacy and Enhanced V2 fields are provided for the same key, prefer the Enhanced V2 interpretation.
+       - For Enhanced V2, collisions are defined ONLY via the `collision` object.
+      Do not set collision anywhere else (no Lua hacks, no relay components yourself).
+      - If you need ParticleCollisionRelay behaviour, set `collision.sendCollisionMessages: true`
+       and `collision.attachRelay: true` in the JSON; the C# applier will manage the component.
+       - `emission.bursts[*].repeatInterval` MUST be ≥ 0. Use `0` for a single-shot burst.
+       The code clamps it safely; avoid negative values.
+       - Prefer `collision.collidesWithLayers: ["Default","GeneratedObject"]` for readability.
+       If you provide `collidesWithMask`, omit `collidesWithLayers` (choose exactly one).
+
+output_schema: |
+  json_object:
+    object_name: string
+    created_at: string   # ISO-8601 UTC
+    lua_code: string
+    particle_json:
+    - # EITHER a LegacyEffect OR an EnhancedV2Effect.
+        # LegacyEffect (simple fields)
+             # Enhanced V2 Effect
+      effectName: string
+      main:
+        gravityModifier: number
+        simulationSpace: enum["Local","World"]
+        scalingMode: enum["Local","Hierarchy","Shape"]
+        prewarm: boolean
+        playOnAwake: boolean
+        duration: number
+        startColor: { r: number, g: number, b: number, a: number }
+        startSize: number
+        startSpeed: number
+        startLifetime: number
+        maxParticles: number
+        loop: boolean
+      shapeModule:
+        type: enum["Cone","Sphere","Hemisphere","Box","Circle"]
+        angle: number
+        radius: number
+        arc: number
+        position: { x: number, y: number, z: number }
+      emission:
+        rateOverTime: number
+        rateOverDistance: number
+        bursts:
+          - time: number
+            count: number
+            cycleCount: number
+            repeatInterval: number   # non-negative; 0 means “single shot”
+      velocityOverLifetime:
+        enabled: boolean
+        space: enum["Local","World"]
+        x: { mode: string, constant?: number, constantMin?: number, constantMax?: number, curve?: [{time:number,value:number}], curveMin?: [...], curveMax?: [...] }
+        y: { ...same as x... }
+        z: { ...same as x... }
+        orbitalY: number
+        speedModifier: { ...MinMaxCurve... }
+      colorOverLifetime:
+        enabled: boolean
+        gradient:
+          colorKeys: [{ time: number, color: { r:number,g:number,b:number,a:number } }]
+          alphaKeys: [{ time: number, alpha: number }]
+      sizeOverLifetime:
+        enabled: boolean
+        separateAxes: boolean
+        size: { ...MinMaxCurve... }
+      rotationOverLifetime:
+        enabled: boolean
+        separateAxes: boolean
+        z: { ...MinMaxCurve... }   # (extend with x/y if needed)
+      noise:
+        enabled: boolean
+        strength: number
+        frequency: number
+        scrollSpeed: number
+        octaveCount: number
+        quality: enum["Low","Medium","High"]
+      trails:
+        enabled: boolean
+        lifetime: number
+        ratio: number
+        dieWithParticles: boolean
+      renderer:
+        renderMode: enum["Billboard","StretchedBillboard","HorizontalBillboard","VerticalBillboard","Mesh"]
+        materialName: string
+        sortingFudge: number
+
+      # Single source of truth for collisions (matches C# DTO)
+      collision:
+        enabled: boolean
+        type: enum["World","Planes"]
+        mode: enum["3D","2D"]
+        # choose ONE of these for layers:
+        collidesWithMask?: number
+        collidesWithLayers?: [string]
+        sendCollisionMessages: boolean
+        attachRelay: boolean
+        dampen: number         # 0..1
+        bounce: number         # 0..1
+        lifetimeLoss: number   # 0..1
+        minKillSpeed: number
+        radiusScale: number
+        quality: enum["Low","Medium","High"]
+        voxelSize: number
+        maxCollisionShapes: number
+        enableDynamicColliders: boolean
+        multiplyColliderForceByParticleSize: boolean
+
+      # Back-compat top-levels (optional; only if you’re not using main/emission above)
+      duration?: number
+      startColor?: { r:number,g:number,b:number,a:number }
+      startSize?: number
+      startSpeed?: number
+      emissionRate?: number
+      lifetime?: number
+      maxParticles?: number
+      shape?: enum["Cone","Sphere","Box"]
+
+    param_ui_lua:
+      - name: string
+        type: string
+        min: number
+        max: number
+        default: number
+        options: [string]
+    param_ui_particle:
+      - effectName: string
+        label: string
+        key: string
+        type: string
+        min: number
+        max: number
+        default: number
+        options: [string]
+    comment: string
+
+
+validation_checklist_for_model:
+  - Output is ONLY one JSON object (no prose).
+  - created_at present (ISO-8601).
+  - param_ui_lua uses "name" key (not "variable").
+  - No IDs used in object_name (must be SceneObjects.name, generate_spots.gameObjectName, or user prompt).
+  - trigger() exists.
+  - No "..." or "…" in lua_code.
+  - Any usage of other-object physics must use only the allowed getters (collisionProxy:GetRigidbodyProxy() or gameObjectProxy:GetRigidbodyProxy()).
+  - Each particle_json entry is EITHER Legacy or Enhanced V2; do not mix schemas inside one effect.
+  - For Enhanced V2, all MinMaxCurves must follow the required shape with {"mode":...}.
+  - For Enhanced V2, startColor must be an object {{"r":n,"g":n,"b":n,"a":n}}.
+  - Any effectName used in lua_code with activateEffect("...") exists in particle_json and is written in UPPERCASE_WITH_UNDERSCORES.
+  - param_ui_particle keys only reference properties listed in “Particle Effects” (UI-safe keys).
+  - Dropdowns for renderer.renderMode include only ["Billboard","StretchedBillboard","HorizontalBillboard","VerticalBillboard","Mesh"].

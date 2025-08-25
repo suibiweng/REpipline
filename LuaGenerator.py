@@ -83,14 +83,94 @@ def build_prompt(scene_json, existing_objects_summaries, base_template, object_p
 def call_openai(prompt):
     client = openai.OpenAI(api_key=load_api_key())
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are a Lua generation agent for Unity simulation."},
+            {"role": "system", "content": "You are a Lua generation agent for Unity simulation. Return ONLY valid JSON if asked to output JSON."},
             {"role": "user", "content": prompt}
         ],
         temperature=0.5
     )
     return response.choices[0].message.content
+
+# =====================================================================
+#   JSON coercion utilities (handle explanations, code fences, etc.)
+# =====================================================================
+
+_FENCE_RE = re.compile(r"```+([a-zA-Z0-9_-]+)?\s*([\s\S]*?)```+", re.MULTILINE)
+
+def _strip_code_fences(text):
+    """
+    If the whole content is wrapped in a code fence, return inner.
+    Otherwise, replace fenced regions with their inner text.
+    """
+    m = _FENCE_RE.fullmatch(text.strip())
+    if m:
+        return m.group(2).strip()
+    return _FENCE_RE.sub(lambda mm: mm.group(2), text)
+
+def _extract_json_object(text):
+    """
+    Extract the first balanced top-level JSON object substring from text.
+    Raises ValueError if not found.
+    """
+    s = text.strip()
+    start = None
+    depth = 0
+    in_str = False
+    esc = False
+
+    for i, ch in enumerate(s):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        else:
+            if ch == '"':
+                in_str = True
+                continue
+            if ch == '{':
+                if depth == 0:
+                    start = i
+                depth += 1
+                continue
+            if ch == '}':
+                if depth > 0:
+                    depth -= 1
+                    if depth == 0 and start is not None:
+                        return s[start:i+1]
+    raise ValueError("No JSON object found in text.")
+
+def _load_model_json_or_raise(raw_text):
+    """
+    Try hard to load a JSON object from model output:
+      1) direct json.loads
+      2) strip code fences, retry
+      3) extract first balanced { ... } object, json.loads
+    Raises ValueError if all fail.
+    """
+    try:
+        return json.loads(raw_text)
+    except Exception:
+        pass
+
+    stripped = _strip_code_fences(raw_text)
+    if stripped != raw_text:
+        try:
+            return json.loads(stripped)
+        except Exception:
+            pass
+
+    try:
+        obj_text = _extract_json_object(stripped)
+        return json.loads(obj_text)
+    except Exception:
+        pass
+
+    raise ValueError("Model did not return valid JSON (after fence stripping and extraction).")
 
 # --------- Update Others ---------
 def update_other_virtual_objects(scene_json, new_urlid, prompt_template, object_prompt):
@@ -131,7 +211,7 @@ def update_other_virtual_objects(scene_json, new_urlid, prompt_template, object_
         result = call_openai(full_prompt)
 
         try:
-            parsed = json.loads(result)
+            parsed = _load_model_json_or_raise(result)
             # Preserve object_name and overwrite created_at
             original_name = original_data.get("object_name", original_data.get("object", "Unknown"))
             parsed["object_name"] = original_name
@@ -181,7 +261,7 @@ def vision_only_generate(image_path, urlid):
 
     # Overwrite created_at with current system time (if JSON parsable)
     try:
-        parsed = json.loads(result)
+        parsed = _load_model_json_or_raise(result)
         parsed["created_at"] = datetime.utcnow().isoformat()
         result = json.dumps(parsed, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -227,10 +307,11 @@ def _write_dynamic_json(urlid, data, root="objects"):
     return path, backup
 
 def _ensure_json_valid(json_text):
-    try:
-        obj = json.loads(json_text)
-    except Exception as e:
-        raise ValueError(f"Model did not return valid JSON. Parse error: {e}\nRaw text:\n{json_text}")
+    """
+    Validate and normalize model output into a dict.
+    Accepts raw text and will coerce/strip to find the JSON object.
+    """
+    obj = _load_model_json_or_raise(json_text)
 
     # Accept either object_name or object
     has_name = ("object_name" in obj) or ("object" in obj)
@@ -280,10 +361,18 @@ Produce a corrected JSON that resolves the error while preserving intent. If any
 def regenerate_from_error(urlid, error_text, root="objects", model=None):
     existing_json, in_path = _read_dynamic_json(urlid, root)
     prompt = _build_error_regen_prompt(existing_json, error_text)
-    result_text = call_openai(prompt) if model is None else call_openai(prompt)
-    fixed_obj = _ensure_json_valid(result_text)
 
-    # Preserve original object_name
+    # 1st attempt
+    result_text = call_openai(prompt) if model is None else call_openai(prompt)
+    try:
+        fixed_obj = _ensure_json_valid(result_text)
+    except Exception:
+        # STRICT retry once: ask for JSON ONLY
+        strict_prompt = prompt + "\n\nIMPORTANT: Return ONLY a single JSON object. No code fences. No commentary."
+        result_text2 = call_openai(strict_prompt)
+        fixed_obj = _ensure_json_valid(result_text2)
+
+    # Preserve original object_name and write
     original_name = existing_json.get("object_name", existing_json.get("object", "Unknown"))
     fixed_obj["object_name"] = original_name
     fixed_obj.pop("object", None)
@@ -371,6 +460,247 @@ def _ensure_particles_consistency(original_data, parsed, object_prompt):
     # Write back
     parsed["particle_json"] = list(name_to_particle.values())
 
+# =====================================================================
+#   Find the correct scene for an object id (current directory only)
+# =====================================================================
+
+def find_scene_for_object(obj_id, search_dirs=(".",)):
+    """
+    Search the given directories (default: current dir) for a scene JSON
+    whose generateSpots contains obj_id. Returns (scene_dict, scene_path)
+    or (None, None) if not found.
+
+    Looks in:
+      - any file ending with _scene.json
+      - any .json file (fallback), to catch scenes saved without the suffix
+    """
+    for d in search_dirs:
+        if not os.path.isdir(d):
+            continue
+
+        # Prefer *_scene.json files first
+        scene_candidates = [n for n in os.listdir(d) if n.endswith("_scene.json")]
+        # Fallback to any .json if none matched
+        if not scene_candidates:
+            scene_candidates = [n for n in os.listdir(d) if n.endswith(".json")]
+
+        for name in scene_candidates:
+            path = os.path.join(d, name)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    scene = json.load(f)
+            except Exception:
+                continue
+
+            spots = scene.get("generateSpots", []) or []
+            for spot in spots:
+                if spot.get("id") == obj_id:
+                    return scene, path
+
+    return None, None
+
+# =====================================================================
+# Name safety & formatting helpers (CONST_CASE + ID guards)
+# =====================================================================
+
+ID_PATTERNS = [
+    re.compile(r"^\d{8,}$"),                              # pure digits 8+
+    re.compile(r"^[0-9a-fA-F]{8,}$"),                     # hex-like 8+
+    re.compile(r"^\d{8,}[0-9a-fA-F]{4,}$"),               # timestamp + hex mix
+    re.compile(r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"),  # UUID
+]
+
+def is_id_shaped(s: str) -> bool:
+    if s is None:
+        return True
+    if not isinstance(s, str):
+        s = str(s)
+    ss = s.strip()
+    if not ss:
+        return True
+    for pat in ID_PATTERNS:
+        if pat.match(ss):
+            return True
+    return False
+
+def noun_phrase_from_prompt(prompt_text: str) -> str:
+    if not prompt_text:
+        return ""
+    t = prompt_text.strip().strip('"').strip("'")
+    m = re.search(r'"([^"]{1,64})"', t)
+    if m:
+        t = m.group(1).strip()
+    t = re.split(r'[:\n\r]', t, maxsplit=1)[0].strip()
+    words = re.findall(r"[A-Za-z0-9#@\-']+", t)
+    if not words:
+        return ""
+    return " ".join(words[:4])
+
+def noun_phrase_from_comment(comment_text: str) -> str:
+    """
+    Try to extract a short noun phrase (<=4 words) from comment.
+    Prefer quoted spans or the first bolded/colored token; else first 1–4 words.
+    """
+    if not isinstance(comment_text, str) or not comment_text.strip():
+        return ""
+    t = comment_text.strip()
+
+    # quoted span first
+    m = re.search(r'"([^"]{1,64})"', t)
+    if m:
+        s = " ".join(re.findall(r"[A-Za-z0-9#@\-']+", m.group(1)))
+        return s[:64].strip()
+
+    # HTML-like tags <b><color=...>Name</color></b>
+    m = re.search(r">([^<>]{1,64})<", t)
+    if m:
+        cand = " ".join(re.findall(r"[A-Za-z0-9#@\-']+", m.group(1)))
+        if cand:
+            return " ".join(cand.split()[:4])
+
+    # fallback: first 1–4 words
+    words = re.findall(r"[A-Za-z0-9#@\-']+", t)
+    return " ".join(words[:4]) if words else ""
+
+def collect_known_ids(scene_json: dict) -> set:
+    ids = set()
+    for so in scene_json.get("SceneObjects", []) or []:
+        if isinstance(so, dict) and so.get("id"):
+            ids.add(str(so["id"]))
+    for gs in scene_json.get("generateSpots", []) or []:
+        if isinstance(gs, dict) and gs.get("id"):
+            ids.add(str(gs["id"]))
+    if scene_json.get("sessionURLID"):
+        ids.add(str(scene_json["sessionURLID"]))
+    return ids
+
+def to_const_case(name: str) -> str:
+    """
+    Convert a string to UPPERCASE_WITH_UNDERSCORES.
+    Collapses whitespace to single underscore, trims, and uppercases.
+    """
+    if not isinstance(name, str):
+        name = str(name) if name is not None else ""
+    s = re.sub(r"\s+", "_", name.strip())
+    return s.upper()
+
+def best_name_from_scene_or_prompt(scene_json: dict, prompt_text: str, comment_text: str = "") -> str:
+    # Real-object explicit tag
+    if isinstance(prompt_text, str) and prompt_text.strip().startswith("[This is a real object in the space]"):
+        real = prompt_text.split("]", 1)[-1].strip()
+        names = [so.get("name", "") for so in (scene_json.get("SceneObjects") or []) if isinstance(so, dict)]
+        for n in names:
+            if n and n.lower() == real.lower():
+                return n
+
+    # generateSpots gameObjectName semantic match
+    gspots = scene_json.get("generateSpots") or []
+    pt = (prompt_text or "").strip().lower()
+    for gs in gspots:
+        gon = (gs.get("gameObjectName") or "").strip()
+        if gon and (gon.lower() == pt or gon.lower() in pt or pt in gon.lower()):
+            return gon
+
+    # try comment-derived noun phrase
+    cnp = noun_phrase_from_comment(comment_text or "")
+    if cnp:
+        return cnp
+
+    # fallback: noun phrase from prompt
+    np = noun_phrase_from_prompt(prompt_text or "")
+    return np or "Object"
+
+def purge_ids_from_payload(obj: dict, known_ids: set, safe_name: str) -> None:
+    code = obj.get("lua_code")
+    if isinstance(code, str) and known_ids:
+        for tid in known_ids:
+            if not tid:
+                continue
+            code = code.replace(f'"{tid}"', f'"{safe_name}"')
+            code = code.replace(f"'{tid}'", f"'{safe_name}'")
+        obj["lua_code"] = code
+    for key in ("param_ui_lua", "param_ui_particle"):
+        arr = obj.get(key)
+        if isinstance(arr, list):
+            for it in arr:
+                if isinstance(it, dict) and isinstance(it.get("options"), list):
+                    it["options"] = [safe_name if (isinstance(x, str) and x in known_ids) else x for x in it["options"]]
+
+def request_name_only_with_openai(base_template: str, scene_json: dict, object_prompt: str, bad_name: str, comment_text: str = "") -> str:
+    scene_objects_entries = ", ".join(json.dumps(x, ensure_ascii=False) for x in (scene_json.get("SceneObjects") or []))
+    generate_spots_entries = ", ".join(json.dumps(x, ensure_ascii=False) for x in (scene_json.get("generateSpots") or []))
+    narrow_instruction = f"""
+You produced an invalid object name: "{bad_name}".
+Using ONLY these sources (in order): SceneObjects[].name, generateSpots[].gameObjectName, a noun phrase from the user prompt, or a noun phrase already present in your own 'comment' text,
+return a STRICT JSON object with just one field: "object_name".
+Rules:
+- Never return any id/sessionURLID/UUID/timestamp-like token.
+- Preserve multi-word names (e.g., "Baseball Bat" must remain multi-word).
+- Do NOT add numbering or suffixes.
+- Return ONLY: {{"object_name":"..."}}
+
+Context:
+"SceneObjects": [{scene_objects_entries}]
+"generateSpots": [{generate_spots_entries}]
+User prompt: {object_prompt.strip()}
+Comment (may already describe the object): {comment_text.strip() if isinstance(comment_text, str) else ""}
+""".strip()
+    strict_prompt = base_template + "\n\n" + narrow_instruction
+    raw = call_openai(strict_prompt)
+    try:
+        data = _load_model_json_or_raise(raw)
+        name = data.get("object_name", "")
+        if isinstance(name, str):
+            return name.strip()
+    except Exception:
+        pass
+    return best_name_from_scene_or_prompt(scene_json, object_prompt, comment_text)
+
+# =====================================================================
+# Diagnostics helper for missing modify file
+# =====================================================================
+
+def _diagnose_missing_existing_json(path_candidate: str):
+    norm = os.path.normpath(path_candidate)
+    print(f"[Modify] File not found: {norm}")
+    folder = os.path.dirname(norm)
+    print(f"[Modify] Expected folder: {folder}")
+    if not os.path.isdir(folder):
+        print("[Modify] Folder does not exist.")
+        # Try to guess urlid and show suggestions from objects/
+        m = re.search(r"[\\/](objects)[\\/]([^\\/]+)", norm)
+        if m:
+            urlid = m.group(2)
+            # objects directory relative to CWD
+            obj_root = "objects"
+            if os.path.isdir(obj_root):
+                possible = []
+                for d in os.listdir(obj_root):
+                    if urlid in d:
+                        sub = os.path.join(obj_root, d)
+                        if os.path.isdir(sub):
+                            for fn in os.listdir(sub):
+                                if fn.endswith("_DynamicCoding.json"):
+                                    possible.append(os.path.join(sub, fn))
+                if possible:
+                    print("[Modify] Possible existing files:")
+                    for p in possible:
+                        print(" -", os.path.normpath(p))
+            else:
+                print("[Modify] 'objects' directory not found in current working directory.")
+        return
+
+    print("[Modify] Folder exists. Listing *_DynamicCoding.json files:")
+    try:
+        matches = [fn for fn in os.listdir(folder) if fn.endswith("_DynamicCoding.json")]
+        if matches:
+            for fn in matches:
+                print(" -", os.path.normpath(os.path.join(folder, fn)))
+        else:
+            print(" (none)")
+    except Exception as e:
+        print(f"[Modify] Could not list folder contents: {e}")
+
 # --------- CLI Entry Point ---------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Lua Generator CLI")
@@ -423,7 +753,29 @@ if __name__ == "__main__":
 
         # Overwrite created_at with current system time
         try:
-            parsed = json.loads(result)
+            parsed = _load_model_json_or_raise(result)
+
+            # Name repair before we dump to disk
+            known_ids = collect_known_ids(scene)
+            comment_hint = parsed.get("comment", "")
+
+            name = parsed.get("object_name") or parsed.get("object") or ""
+            bad = is_id_shaped(name) or (name in known_ids) or (not isinstance(name, str) or not name.strip())
+            if bad:
+                base_template = load_base_prompt_template_yaml(args.prompt_yaml)
+                fixed = request_name_only_with_openai(base_template, scene, args.object_prompt, name or "<empty>", comment_hint)
+                if not fixed or is_id_shaped(fixed) or fixed in known_ids:
+                    fixed = best_name_from_scene_or_prompt(scene, args.object_prompt, comment_hint)
+                fixed = to_const_case(fixed)
+                parsed["object_name"] = fixed
+                parsed.pop("object", None)
+            else:
+                fixed = to_const_case(name)
+                parsed["object_name"] = fixed
+                parsed.pop("object", None)
+
+            purge_ids_from_payload(parsed, known_ids, parsed["object_name"])
+
             parsed["created_at"] = datetime.utcnow().isoformat()
             result = json.dumps(parsed, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -437,8 +789,17 @@ if __name__ == "__main__":
             update_other_virtual_objects(scene, args.urlid, base, args.object_prompt)
 
     elif args.mode == "modify":
-        with open(args.existing_json, 'r', encoding='utf-8') as f:
+        target_path = os.path.normpath(args.existing_json)
+
+        # Helpful diagnostics BEFORE attempting to open
+        if not os.path.exists(target_path):
+            _diagnose_missing_existing_json(target_path)
+            # Exit with a clear message
+            raise FileNotFoundError(f"[Modify] Cannot proceed. File not found: {target_path}")
+
+        with open(target_path, 'r', encoding='utf-8') as f:
             original_data = json.load(f)
+
         base_prompt = load_base_prompt_template_yaml(args.prompt_yaml)
         prompt = (
             f"The current object is: {original_data.get('object_name', original_data.get('object', 'Unknown'))} (don't change it)\n\n"
@@ -449,11 +810,11 @@ if __name__ == "__main__":
         full_prompt = base_prompt + "\n\n" + prompt
         result = call_openai(full_prompt)
 
-        # Overwrite created_at, PRESERVE object_name, and ensure particles exist
+        # Overwrite created_at, PRESERVE object_name, ensure particles, and coerce JSON
         try:
-            parsed = json.loads(result)
+            parsed = _load_model_json_or_raise(result)
 
-            # Lock the name
+            # Lock the name (then repair if it was ID-shaped)
             original_name = original_data.get("object_name", original_data.get("object", "Unknown"))
             parsed["object_name"] = original_name
             parsed.pop("object", None)
@@ -461,23 +822,51 @@ if __name__ == "__main__":
             # Ensure particles are present and complete
             _ensure_particles_consistency(original_data, parsed, args.object_prompt)
 
+            # If original name was ID-ish, repair now (using comment as hint)
+            try:
+                obj_id = os.path.basename(target_path).split('_')[0]
+                scene_guess, _ = find_scene_for_object(obj_id, search_dirs=(".",))
+            except Exception:
+                scene_guess = None
+            if not scene_guess:
+                scene_guess = {"SceneObjects": [], "generateSpots": []}
+
+            known_ids_mod = collect_known_ids(scene_guess)
+            comment_hint_mod = parsed.get("comment", "")
+
+            current_name = parsed["object_name"]
+            if is_id_shaped(current_name) or current_name in known_ids_mod or not str(current_name).strip():
+                base_template = load_base_prompt_template_yaml(args.prompt_yaml)
+                repaired = request_name_only_with_openai(base_template, scene_guess, args.object_prompt, current_name, comment_hint_mod)
+                if not repaired or is_id_shaped(repaired) or repaired in known_ids_mod:
+                    repaired = best_name_from_scene_or_prompt(scene_guess, args.object_prompt, comment_hint_mod)
+                repaired = to_const_case(repaired)
+                parsed["object_name"] = repaired
+            else:
+                # enforce CONST-CASE even for good names
+                repaired = to_const_case(current_name)
+                parsed["object_name"] = repaired
+
+            purge_ids_from_payload(parsed, known_ids_mod, parsed["object_name"])
+
             # Timestamp
             parsed["created_at"] = datetime.utcnow().isoformat()
             result = json.dumps(parsed, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"[Warning] modify could not finalize JSON (created_at/name/particles): {e}")
 
-        with open(args.existing_json, 'w', encoding='utf-8') as f:
+        with open(target_path, 'w', encoding='utf-8') as f:
             f.write(result)
-        print(f"[] Modified: {args.existing_json}")
+        print(f"[] Modified: {target_path}")
 
         if args.update_others:
-            # Try to guess scene path from existing_json
-            urlid = os.path.basename(args.existing_json).split('_')[0]
-            scene_path = os.path.join("sessions", f"{urlid}_scene.json")
-            if os.path.exists(scene_path):
-                scene = load_scene_session(scene_path)
-                update_other_virtual_objects(scene, urlid, base_prompt, args.object_prompt)
+            # Find the correct scene by scanning the current directory for this object id
+            obj_id = os.path.basename(target_path).split('_')[0]
+            scene, scene_path = find_scene_for_object(obj_id, search_dirs=(".",))
+            if scene:
+                update_other_virtual_objects(scene, obj_id, base_prompt, args.object_prompt)
+            else:
+                print(f"[Skip] Could not find a scene containing object id {obj_id} in current directory '.'.")
 
     elif args.mode == "vision":
         if args.scene_json and args.prompt_yaml and args.urlid:
@@ -493,14 +882,32 @@ if __name__ == "__main__":
 
             # Overwrite created_at before writing
             try:
-                parsed = json.loads(result)
+                parsed = _load_model_json_or_raise(result)
+                # Name safety (use comment as hint + CONST-CASE)
+                known_ids_v = collect_known_ids(scene)
+                comment_hint_v = parsed.get("comment", "")
+                nm = parsed.get("object_name") or parsed.get("object") or ""
+                if is_id_shaped(nm) or nm in known_ids_v or not str(nm).strip():
+                    base_template = load_base_prompt_template_yaml(args.prompt_yaml)
+                    fixed = request_name_only_with_openai(base_template, scene, object_prompt, nm or "<empty>", comment_hint_v)
+                    if not fixed or is_id_shaped(fixed) or fixed in known_ids_v:
+                        fixed = best_name_from_scene_or_prompt(scene, object_prompt, comment_hint_v)
+                    parsed["object_name"] = to_const_case(fixed)
+                    parsed.pop("object", None)
+                else:
+                    parsed["object_name"] = to_const_case(nm)
+                    parsed.pop("object", None)
+                purge_ids_from_payload(parsed, known_ids_v, parsed["object_name"])
+
                 parsed["created_at"] = datetime.utcnow().isoformat()
                 result = json.dumps(parsed, ensure_ascii=False, indent=2)
             except Exception as e:
                 print(f"[Warning] vision could not parse JSON to set created_at: {e}")
 
-            with open(os.path.join(folder, f"{args.urlid}_DynamicCoding.json"), 'w', encoding='utf-8') as f:
+            out_file = os.path.join(folder, f"{args.urlid}_DynamicCoding.json")
+            with open(out_file, 'w', encoding='utf-8') as f:
                 f.write(result)
+            print(f"[] Saved: {out_file}")
         else:
             print(extract_formula_from_image(args.image_path, args.prompt))
 

@@ -293,7 +293,7 @@ def command():
             
             call_lua_generator(
             mode="generate",
-            yaml_path=f"./PromptInstructions/base_prompt0717.yaml",
+            yaml_path=f"./PromptInstructions/base_prompt0824.yaml",
             object_prompt=prompt,
             scene_json=f"{session_id}_scene.json",
             urlid=urlid,command="DynamicCoding"
@@ -309,6 +309,11 @@ def command():
 
         
         return jsonify({"message": "DynamicCoding"}), 200
+    
+
+
+
+
         
     if command == "DynamicCodingWithDrawing":
         print("p2play")
@@ -319,7 +324,7 @@ def command():
             
             call_lua_generator(
             mode="generate",
-            yaml_path=f"./PromptInstructions/base_prompt0717.yaml",
+            yaml_path=f"./PromptInstructions/base_prompt0824.yaml",
             object_prompt=prompt,
             scene_json=f"{session_id}_scene.json",
             urlid=urlid,command=command
@@ -335,6 +340,26 @@ def command():
 
         
         return jsonify({"message": "DynamicCoding"}), 200
+    
+
+
+    if command == "RealObjectDynamicCoding":
+            print("p2play")
+            print(prompt)
+            print(folder)
+            print("Object ID:", urlid)
+            if(session_id!=""):
+                call_lua_generator(
+                    mode="real_object_dynamic_coding",
+                    yaml_path=f"./PromptInstructions/base_prompt0824.yaml",
+                    object_prompt=prompt,
+                    scene_json=f"{session_id}_scene.json",
+                    urlid=urlid,command=command
+                )
+                print("session_id is not empty")
+        
+            return jsonify({"message": "ModifyDynamicCoding"}), 200
+    
         
 
 
@@ -349,7 +374,7 @@ def command():
         if(session_id!=""):
             call_lua_generator(
                 mode="modify",
-                yaml_path=f"./PromptInstructions/base_prompt0717.yaml",
+                yaml_path=f"./PromptInstructions/base_prompt0824.yaml",
                 object_prompt=prompt,
                 existing_json=f"{folder}/{urlid}_DynamicCoding.json",command=command
             )
@@ -369,7 +394,7 @@ def command():
         if (session_id != ""):
             call_lua_generator(
                 mode="error",
-                yaml_path="./PromptInstructions/base_prompt0717.yaml",  # ignored in error mode
+                yaml_path="./PromptInstructions/base_prompt0824.yaml",  # ignored in error mode
                 object_prompt=prompt,  # treat prompt as error_text
                 urlid=urlid,
                 command=command
@@ -1474,6 +1499,87 @@ def removebg_with_sam(input_file, output_file, point_data, threshold=0.5):
         return None
     
 
+# def call_lua_generator(
+#     mode,
+#     yaml_path,
+#     object_prompt,
+#     *,
+#     scene_json=None,
+#     urlid=None,
+#     existing_json=None,
+#     command=None
+# ):
+#     """
+#     Calls LuaGenerator.py in 'generate', 'modify', or 'error' mode.
+
+#     Parameters:
+#         mode: "generate", "modify", or "error"
+#         yaml_path: path to base_prompt.yaml (ignored in 'error' mode)
+#         object_prompt: user prompt (ignored in 'error' mode)
+#         scene_json: required for 'generate' mode
+#         urlid: required for 'generate' and 'error' modes
+#         existing_json: required for 'modify' mode
+#         command: optional; if "DynamicCoding", post-processes Lua for generate mode
+#     """
+#     try:
+#         if mode == "generate":
+#             if not scene_json or not urlid:
+#                 raise ValueError("scene_json and urlid are required for generate mode.")
+#             args = [
+#                 "python", "LuaGenerator.py", "generate",
+#                 scene_json, yaml_path, urlid, object_prompt
+#             ]
+#             expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
+
+#         elif mode == "modify":
+#             if not existing_json:
+#                 raise ValueError("existing_json is required for modify mode.")
+#             args = [
+#                 "python", "LuaGenerator.py", "modify",
+#                 existing_json, yaml_path, object_prompt, "--update-others"
+#             ]
+#             expected_output = existing_json
+#         elif mode == "real_object_dynamic_coding":
+#             if not scene_json or not urlid:
+#                 raise ValueError("scene_json and urlid are required for real_object_dynamic_coding mode.")
+#             args = [
+#                 "python", "LuaGenerator.py", "generate",
+#                 scene_json, yaml_path, urlid, object_prompt, "--update-others"
+#             ]
+#             expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
+
+#         elif mode == "error":
+#             if not urlid:
+#                 raise ValueError("urlid is required for error mode.")
+#             args = [
+#                 "python", "LuaGenerator.py", "error",
+#                 urlid, "--error-text", object_prompt  # reuse object_prompt to pass error description
+#             ]
+#             expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
+
+#         else:
+#             raise ValueError("mode must be 'generate', 'modify', or 'error'")
+
+#         result = subprocess.run(args, capture_output=True, text=True)
+
+#         print("LuaGenerator.py stdout:\n", result.stdout)
+#         print("LuaGenerator.py stderr:\n", result.stderr)
+
+#         if result.returncode == 0:
+#             print("Lua generation subprocess completed.")
+#             print(f"Output saved to: {expected_output}")
+
+#             # Post-processing ONLY for generate mode
+#             if mode == "generate" and command == "DynamicCoding":
+#                 shape = save_lua_from_json(expected_output, f"{urlid}.lua")
+#                 send_requestShapE(urlid, shape)
+#         else:
+#             print("Lua generation failed with return code:", result.returncode)
+
+#     except subprocess.CalledProcessError as e:
+#         print("Subprocess error:", e)
+#     except Exception as e:
+#         print(str(e))
 def call_lua_generator(
     mode,
     yaml_path,
@@ -1485,68 +1591,76 @@ def call_lua_generator(
     command=None
 ):
     """
-    Calls LuaGenerator.py in 'generate', 'modify', or 'error' mode.
+    Calls LuaGenerator.py in one of:
+      - "generate"
+      - "modify"
+      - "real_object_dynamic_coding"
+      - "error"
 
     Parameters:
-        mode: "generate", "modify", or "error"
+        mode: one of the modes above (case/spacing/hyphens are normalized)
         yaml_path: path to base_prompt.yaml (ignored in 'error' mode)
         object_prompt: user prompt (ignored in 'error' mode)
-        scene_json: required for 'generate' mode
-        urlid: required for 'generate' and 'error' modes
-        existing_json: required for 'modify' mode
+        scene_json: required for 'generate' and 'real_object_dynamic_coding'
+        urlid: required for 'generate', 'real_object_dynamic_coding', and 'error'
+        existing_json: required for 'modify'
         command: optional; if "DynamicCoding", post-processes Lua for generate mode
+    Returns:
+        expected_output (str) if subprocess succeeds
+    Raises:
+        ValueError on bad/missing params; CalledProcessError if LuaGenerator fails
     """
-    try:
-        if mode == "generate":
-            if not scene_json or not urlid:
-                raise ValueError("scene_json and urlid are required for generate mode.")
-            args = [
-                "python", "LuaGenerator.py", "generate",
-                scene_json, yaml_path, urlid, object_prompt
-            ]
-            expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
+    # Normalize mode
+    norm_mode = str(mode).strip().lower().replace("-", "_")
+    allowed = {"generate", "modify", "real_object_dynamic_coding", "error"}
 
-        elif mode == "modify":
-            if not existing_json:
-                raise ValueError("existing_json is required for modify mode.")
-            args = [
-                "python", "LuaGenerator.py", "modify",
-                existing_json, yaml_path, object_prompt, "--update-others"
-            ]
-            expected_output = existing_json
+    if norm_mode not in allowed:
+        raise ValueError(f"mode must be one of {sorted(allowed)}; got {mode!r}")
 
-        elif mode == "error":
-            if not urlid:
-                raise ValueError("urlid is required for error mode.")
-            args = [
-                "python", "LuaGenerator.py", "error",
-                urlid, "--error-text", object_prompt  # reuse object_prompt to pass error description
-            ]
-            expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
+    # Validate per-mode params and assemble args/outputs
+    if norm_mode == "generate":
+        if not scene_json or not urlid:
+            raise ValueError("scene_json and urlid are required for generate mode.")
+        args = ["python", "LuaGenerator.py", "generate", scene_json, yaml_path, urlid, object_prompt]
+        expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
 
-        else:
-            raise ValueError("mode must be 'generate', 'modify', or 'error'")
+    elif norm_mode == "modify":
+        if not existing_json:
+            raise ValueError("existing_json is required for modify mode.")
+        args = ["python", "LuaGenerator.py", "modify", existing_json, yaml_path, object_prompt, "--update-others"]
+        expected_output = existing_json
 
-        result = subprocess.run(args, capture_output=True, text=True)
+    elif norm_mode == "real_object_dynamic_coding":
+        if not scene_json or not urlid:
+            raise ValueError("scene_json and urlid are required for real_object_dynamic_coding mode.")
+        # Keep --update-others if intentional; remove if you don't want side effects on peers
+        args = ["python", "LuaGenerator.py", "generate", scene_json, yaml_path, urlid, object_prompt, "--update-others"]
+        expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
 
-        print("LuaGenerator.py stdout:\n", result.stdout)
-        print("LuaGenerator.py stderr:\n", result.stderr)
+    else:  # "error"
+        if not urlid:
+            raise ValueError("urlid is required for error mode.")
+        args = ["python", "LuaGenerator.py", "error", urlid, "--error-text", object_prompt]
+        expected_output = f"objects/{urlid}/{urlid}_DynamicCoding.json"
 
-        if result.returncode == 0:
-            print("Lua generation subprocess completed.")
-            print(f"Output saved to: {expected_output}")
+    # Run and raise on failure
+    result = subprocess.run(args, capture_output=True, text=True, check=True)
+    print("LuaGenerator.py stdout:\n", result.stdout)
+    print("LuaGenerator.py stderr:\n", result.stderr)
 
-            # Post-processing ONLY for generate mode
-            if mode == "generate" and command == "DynamicCoding":
-                shape = save_lua_from_json(expected_output, f"{urlid}.lua")
-                send_requestShapE(urlid, shape)
-        else:
-            print("Lua generation failed with return code:", result.returncode)
+    print("Lua generation subprocess completed.")
+    print(f"Output should be at: {expected_output}")
 
-    except subprocess.CalledProcessError as e:
-        print("Subprocess error:", e)
-    except Exception as e:
-        print(str(e))
+    # Optional post-processing ONLY for generate mode
+    if norm_mode == "generate" and command == "DynamicCoding":
+        shape = save_lua_from_json(expected_output, f"{urlid}.lua")
+        send_requestShapE(urlid, shape)
+
+    return expected_output
+
+
+
+
 
 
 
