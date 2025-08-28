@@ -19,8 +19,8 @@ prompt_template: |
   Scene Context:
   - Premise: {premise}
   - Additional Detail: {prompt}
-  - "SceneObjects": [{scene_objects}]  # Real, pre-existing Unity objects (non-movable by generated code). See schema below.
-  - Virtual Objects in Scene: [{generate_spots}]
+  - "SceneObjects": [{{scene_objects}}]  # Real, pre-existing Unity objects (non-movable by generated code). See schema below.
+  - Virtual Objects in Scene: [{{generate_spots}}]
 
   GenerateSpots Schema (virtual objects):
   - Each entry has:
@@ -31,7 +31,7 @@ prompt_template: |
       }}
   - Always prefer `gameObjectName` as the authoritative display name for generated objects.
   - Do not use `id` or `sessionURLID` for naming or comparisons.
-  - Do not truncate names: if the prompt or gameObjectName is "Baseball Bat", use exactly "Baseball Bat" (not "Baseball").  # <-- INSERTED
+  - Do not truncate names: if the prompt or gameObjectName is "Baseball Bat", use exactly "Baseball Bat" (not "Baseball").
 
   Prompt Modes:
   - Initial Prompt (default): The user may provide only an object name or a short description (e.g., "Baseball").
@@ -274,9 +274,9 @@ prompt_template: |
   - Trim:
       • Trim leading/trailing whitespace and collapse internal runs of spaces for derived_name.
   - No name downgrades:
-      • If the prompt indicates a longer noun phrase that contains a previously generated name (e.g., "Baseball Bat" vs "Baseball"), keep the longer phrase ("Baseball Bat").  # <-- INSERTED
+      • If the prompt indicates a longer noun phrase that contains a previously generated name (e.g., "Baseball Bat" vs "Baseball"), keep the longer phrase ("Baseball Bat").
   - Multi-object disambiguation:
-      • If the resolved name duplicates an existing generated object, append a clean numeric suffix: "Name (2)", "Name (3)". Never use IDs/timestamps/hex.  # <-- INSERTED
+      • If the resolved name duplicates an existing generated object, append a clean numeric suffix: "Name (2)", "Name (3)". Never use IDs/timestamps/hex.
 
   # HARD BAN against IDs and timestamp-like strings.
   # The model must treat these as illegal names even if they appear in context.
@@ -284,10 +284,10 @@ prompt_template: |
       • Any SceneObjects[].id
       • Any generate_spots[].id
       • sessionURLID (if provided in the scene JSON)
-      • Pure timestamp/numeric IDs: ^\d{8,}$
-      • Hex-like strings (len ≥ 8): ^[0-9a-fA-F]{8,}$
-      • Mixed timestamp+hex: ^\d{8,}[0-9a-fA-F]{4,}$
-      • UUID-like: ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$
+      • Pure timestamp/numeric IDs: ^\d{{8,}}$
+      • Hex-like strings (len ≥ 8): ^[0-9a-fA-F]{{8,}}$
+      • Mixed timestamp+hex: ^\d{{8,}}[0-9a-fA-F]{{4,}}$
+      • UUID-like: ^[0-9a-fA-F]{{8}}(-[0-9a-fA-F]{{4}}){{3}}-[0-9a-fA-F]{{12}}$
 
   # FINAL ASSERTION (must be done immediately before emitting the JSON):
   - Set object_name = derived_name.
@@ -302,17 +302,17 @@ prompt_template: |
       • generate_spots[].gameObjectName  (for virtual objects)
   - Never compare to any id, sessionURLID, or URLID-shaped token.
 
-  # Collision Name Case Rule (Lua only):  # <-- INSERTED
-  - In lua_code, whenever comparing names (e.g., from safe_get_name(other)) or writing string literals for name checks, use UPPERCASE_WITH_UNDERSCORES.  # <-- INSERTED
-  - Example mapping: "Baseball Bat" → "BASEBALL_BAT"; "Chair" → "CHAIR".  # <-- INSERTED
-  - Do not alter SceneObjects[].name in data; only normalize literals and comparisons in Lua.  # <-- INSERTED
+  # Collision Name Case Rule (Lua only):
+  - In lua_code, whenever comparing names (e.g., from safe_get_name(other)) or writing string literals for name checks, use UPPERCASE_WITH_UNDERSCORES.
+  - Example mapping: "Baseball Bat" → "BASEBALL_BAT"; "Chair" → "CHAIR".
+  - Do not alter SceneObjects[].name in data; only normalize literals and comparisons in Lua.
 
   --
 
   --
 
 
-  Name Tokenization & Collision Comparisons (REQUIRED):  # <-- INSERTED
+  Name Tokenization & Collision Comparisons (REQUIRED):
   - In lua_code, normalize any name you compare into UPPERCASE_WITH_UNDERSCORES tokens.
   - Provide these helpers and constants and USE THEM for all comparisons:
 
@@ -379,7 +379,7 @@ prompt_template: |
   --
 
   CRITICAL LUA SAFETY:
-  - Every variable must be declared as a global (no local variables allowed).
+  - Every variable must be declared as a global (no local variables allowed in the final emitted lua_code).
   - In Lua code, DO NOT quote function arguments like Vector3(). Write: Vector3(0, 1, 0)
   - In JSON fields like particle_json, vector values MUST be quoted strings.
   - DO NOT perform math directly on Vector3.
@@ -402,7 +402,7 @@ prompt_template: |
     • if rigidbodyProxy ~= nil and rigidbodyProxy.SetUseGravity ~= nil then rigidbodyProxy:SetUseGravity(true) end
   - Format self-check (generator requirement):
     • lua_code declares the canonical globals at top and uses 'rigidbodyProxy' (not 'rigidbody').
-    • No 'local' declarations exist anywhere.
+    • No 'local' declarations exist anywhere in the final emitted lua_code.
 
   Trigger Function (required):
   - Always include:
@@ -441,15 +441,11 @@ prompt_template: |
 
   --
 
-  Particle Effects:
-  - You may output particle effects in either format:
-    • Legacy (back-compat, simple fields only)
-    • Enhanced V2 (preferred), with Unity module blocks
-  - Legacy effect fields:
-    effectName, duration, startColor, startSize, startSpeed, maxParticles, shape, emissionRate, lifetime
+  Particle Effects (Enhanced V2 ONLY):
+  - Use ONLY the Enhanced V2 module-based schema; do NOT emit legacy/simple fields.
   - Enhanced V2 effect fields (all optional but recommended):
-    effectName, duration, startColor{{r,g,b,a}}, startSize, startSpeed, maxParticles, shape, emissionRate, lifetime,
-    main{{gravityModifier, simulationSpace, scalingMode, prewarm, playOnAwake}},
+    effectName, duration, startColor{{r,g,b,a}}, startSize, startSpeed, maxParticles, shape, lifetime,
+    main{{gravityModifier, simulationSpace, scalingMode, prewarm, playOnAwake, startLifetime, loop}},
     shapeModule{{type, angle, radius, arc, position{{x,y,z}}}},
     emission{{rateOverTime, rateOverDistance, bursts[{{time,count,cycleCount,repeatInterval}}]}} ,
     velocityOverLifetime{{enabled, space, x{{}}, y{{}}, z{{}}, orbitalY, speedModifier{{}}}},
@@ -458,31 +454,80 @@ prompt_template: |
     rotationOverLifetime{{enabled, separateAxes, z{{}}}},
     noise{{enabled, strength, frequency, scrollSpeed, octaveCount, quality}},
     trails{{enabled, lifetime, ratio, dieWithParticles}},
-    renderer{{renderMode, materialName, sortingFudge}}
-  - UI-safe keys for param_ui_particle (dot-keys):
+    renderer{{renderMode, materialName, sortingFudge}},
+    collision{{enabled, type, mode, collidesWithLayers, sendCollisionMessages, attachRelay, dampen, bounce, lifetimeLoss, minKillSpeed, radiusScale, quality, voxelSize, maxCollisionShapes, enableDynamicColliders, multiplyColliderForceByParticleSize}}
+  - MinMaxCurve objects MUST be one of the following shapes:
+      {{"mode":"Constant","constant":NUMBER}}
+      {{"mode":"Curve","curve":[{{"time":0.0,"value":NUMBER}}, ...]}}
+      {{"mode":"TwoConstants","constantMin":NUMBER,"constantMax":NUMBER}}
+      {{"mode":"TwoCurves","curveMin":[...],"curveMax":[...]}}
+  - `emission.bursts[*].repeatInterval` MUST be ≥ 0 (0 means single-shot).
+  - For collisions, prefer `collidesWithLayers: ["Default","GeneratedObject"]`. If `collidesWithMask` is used, omit layers.
+
+  UI-safe keys for param_ui_particle (dot-keys):
     • Booleans (toggle): main.prewarm, main.playOnAwake, noise.enabled, trails.enabled, trails.dieWithParticles
     • Floats (slider): main.gravityModifier, emission.rateOverTime, emission.rateOverDistance, emission.bursts[0].count,
       noise.strength, noise.frequency, noise.scrollSpeed, noise.octaveCount, trails.lifetime, trails.ratio, renderer.sortingFudge,
       sizeOverLifetime.size.constant, rotationOverLifetime.z.constant, velocityOverLifetime.x.constant,
       velocityOverLifetime.y.constant, velocityOverLifetime.z.constant, velocityOverLifetime.speedModifier.constant
     • Strings (dropdown): renderer.renderMode (options = ["Billboard","StretchedBillboard","HorizontalBillboard","VerticalBillboard","Mesh"])
-  - MinMaxCurve for curve-like fields MUST be one of:
-      {{"mode":"Constant","constant":NUMBER}}
-      {{"mode":"Curve","curve":[{{"time":0.0,"value":NUMBER}}, ...]}}
-      {{"mode":"TwoConstants","constantMin":NUMBER,"constantMax":NUMBER}}
-      {{"mode":"TwoCurves","curveMin":[...],"curveMax":[...]}}
-
   --
+  Particle Categories & Defaults (guidance for the LLM; NOT a schema change):
+  - The model MUST infer a particle_category from the user prompt when possible and apply these defaults unless the prompt overrides them.
+  - Categories are open-ended; if a prompt falls outside the list, pick the closest match and document it in the comment.
 
-  Particle Shooting Rule:
-  - Guns or similar objects should generate a shooting particle system.
+  Fluid-like (no trajectory): ["FIRE","SMOKE","WATER","FOAM","STEAM","MIST"]
+    • main.loop: true   (default for FIRE/SMOKE/WATER/FOAM/STEAM/MIST)
+    • collision.enabled: false   (fluids DO NOT use collision unless the user explicitly asks)
+    • noise.enabled: true        (add soft turbulence)
+      - noise.strength: 0.3
+      - noise.frequency: 0.2
+      - noise.scrollSpeed: 0.15
+      - noise.octaveCount: 2
+      - noise.quality: "Medium"
+    • velocityOverLifetime.enabled: true, space: "World"
+      - y: {"mode":"Constant","constant":0.6}   # gentle rise/drift
+    • renderer.renderMode: "Billboard"
+    • startSize: small to medium (0.1–0.35), tuned by effect
+    • For FIRE visuals: prefer warm gradients (orange→yellow), modest startSpeed (0.2–0.6)
+    • For SMOKE: higher startLifetime, darker gradient, slower startSpeed
+
+  Burst/Impulse: ["EXPLOSION","HIT_SPARK","DUST_PUFF","IMPACT"]
+    • main.loop: false
+    • emission.bursts: include a single burst with repeatInterval: 0
+    • collision.enabled: false by default (enable only if prompt needs debris physics)
+    • Optional short trails for sparks; keep lifetime short
+
+  Trajectory/Emitter-on-move: ["BULLET_TRAIL","PROJECTILE_TRAIL","FOAM_JET","WATER_JET"]
+    • main.simulationSpace: "World"
+    • collision.enabled: true
+    • collision.sendCollisionMessages: true
+    • collision.attachRelay: true
+    • Intended when particles are “shot” or have clear forward travel
+
+  Category override rules:
+    • If the user explicitly mentions “no collision”, set collision.enabled=false regardless of category.
+    • If the user explicitly mentions “looping” or “one-shot”, honor that over defaults.
+    • If the prompt is ambiguous, prefer the safer default (fluids: no collision, loop=true; bursts: loop=false).
+
+  Comment requirements for categories:
+    • In comment, include: particle_category: <name>, and list any overrides (e.g., "loop=false override").
+
+
+
+
+
+
+
+  Particle Shooting Rule (applies ONLY to trajectory-style effects, not fluids):
+  - Applies to categories like BULLET_TRAIL, PROJECTILE_TRAIL, FOAM_JET, WATER_JET, or when the prompt explicitly says “shoot/spray/emit forward”.
   - Always set: main.simulationSpace = "World".
   - Always set: collision.enabled = true
   - Always set: collision.sendCollisionMessages = true
   - Always set: collision.attachRelay = true
   - Effect should emit forward from the object’s current transform (e.g., controller forward).
   - On collision, target object’s trigger() is invoked; shooter may define onParticleHit(name) or turn off the looping effect.
-
+  - This rule DOES NOT apply to FIRE/SMOKE/WATER/FOAM/STEAM/MIST; those default to collision.enabled=false and loop=true unless overridden.
 
   Parametric UI in Comment:
   The `comment` field should include embedded interface cues such as:
@@ -494,7 +539,7 @@ prompt_template: |
   Describe behaviors naturally, e.g.:
     • "Attach a spark effect to Scene object 'CEILING' and play it on collision."
     • "When it collides with target (dropdown: [WALL_FACE, CHAIR]) it activates effect (dropdown: [Explosion])."
-    • "Do not move/scale SceneObjects; only attach and play particle effects."
+    • "Do not move/scale SceneObjects; only attach and play particle effects." 
 
   These annotations will be parsed to generate runtime UI controls in Unity.
 
@@ -513,6 +558,10 @@ prompt_template: |
       • If only one particle effect exists, reuse that effectName for all particle controls.
     - No duplicate `param_ui` entries — if a key is already added, update its range/default instead.
     - All numeric min, max, and default values must be numbers (not strings), and default must be within the min/max range.
+      - If a particle_category is inferred, add a param_ui_particle dropdown:
+      • label: "Effect: particle_category"
+      • key: "main.loop" remains a Toggle but default must follow category defaults (fluids=true, bursts=false).
+      • Provide a "collision.enabled" Toggle only for trajectory categories; otherwise omit it (or render read-only false).
 
   - param_ui_particle (V2):
       • Each control must include: effectName, label, key, type, and either (min/max/default) for sliders or options for dropdowns.
@@ -531,7 +580,7 @@ prompt_template: |
   Particle-Only Effects:
   - "object_name": "EffectName@Effect"
   - "lua_code": "" or empty
-  - "particle_json": valid and complete
+  - "particle_json": valid and complete (Enhanced V2 only)
 
   --
 
@@ -543,7 +592,7 @@ prompt_template: |
   - "object_name" must come from SceneObjects.name (real objects) or generate_spots.gameObjectName (virtual objects) when available; otherwise use the trimmed user prompt. Never use ids or sessionURLID.
   - If any required value is unknown, choose a safe default of the correct type.
   - "object_name" must never be derived from urlid, sessionURLID, file/folder names, or any *.id fields; only use SceneObjects.name, generate_spots.gameObjectName, or the user prompt text per the rules above.
-  - Do NOT emit ID-shaped strings anywhere in the JSON (including lua_code string comparisons and param_ui options).  # <-- INSERTED
+  - Do NOT emit ID-shaped strings anywhere in the JSON (including lua_code string comparisons and param_ui options).
 
 
   Final Name Derivation (must run last):
@@ -553,8 +602,8 @@ prompt_template: |
     3) Else if the prompt is a single short noun phrase (e.g., "Baseball", "Baseball bat"), set object_name to the trimmed prompt text exactly.
     4) Else leave object_name unchanged **IF** it is not ID-shaped.
   - Absolutely forbid ID-shaped names (same ID ban as above). If object_name is ID-shaped, replace it using the first rule above that yields a non-ID name. If nothing valid can be found, use the trimmed user prompt text. Never fall back to an id.
-  - If the chosen object_name duplicates an existing generated object, append "(2)", "(3)", etc. (no IDs/timestamps).  # <-- INSERTED
-  - For Lua comparisons only, use UPPERCASE_WITH_UNDERSCORES literals derived from the chosen object_name or from generate_spots[].gameObjectName.  # <-- INSERTED
+  - If the chosen object_name duplicates an existing generated object, append "(2)", "(3)", etc. (no IDs/timestamps).
+  - For Lua comparisons only, use UPPERCASE_WITH_UNDERSCORES literals derived from the chosen object_name or from generate_spots[].gameObjectName.
 
 
   --
@@ -566,13 +615,13 @@ prompt_template: |
     - If 'gameObjectName' is empty, extract a short noun phrase from the 'prompt'.
     - IDs (numeric/timestamp strings) are strictly forbidden as names under any condition.
     - Examples:
-      - If generateSpots has { "gameObjectName": "Baseball Bat" }, then "object_name" must be "Baseball Bat".
-      - If generateSpots has { "gameObjectName": "" , "prompt": "a wooden chair" }, then "object_name" must be "Wooden Chair".
+      - If generateSpots has {{ "gameObjectName": "Baseball Bat" }}, then "object_name" must be "Baseball Bat".
+      - If generateSpots has {{ "gameObjectName": "" , "prompt": "a wooden chair" }}, then "object_name" must be "Wooden Chair".
 
   {{
     "object_name": "ObjectName or EffectName@Effect",
     "lua_code": "Lua script string (escaped with \\n and \\t for JSON compatibility)",
-    "particle_json": [ {{ full ParticleEffectDefinition(s) }} ],
+    "particle_json": [ {{ full Enhanced V2 ParticleEffectDefinition(s) }} ],
     "param_ui_particle": [ {{ list of UI controls for particles }} ],
     "param_ui_lua": [ {{ list of UI controls for Lua }} ],
     "comment": "Explanation with embedded (slider), (dropdown), etc.",
@@ -589,18 +638,16 @@ constraints:
     - Include trigger() always.
     - No ellipses "..." or "…".
   particle_json: |
-     - Each effect MUST be EITHER:
-        • Legacy: effectName, duration, startColor (string "r,g,b,a"), startSize, startSpeed, maxParticles, shape, emissionRate, lifetime
-        • Enhanced V2 (preferred): effectName plus any of the Enhanced V2 module blocks (main, shapeModule, emission, velocityOverLifetime, colorOverLifetime, sizeOverLifetime, rotationOverLifetime, noise, trails, renderer).
+     - Enhanced V2 ONLY:
+        • effectName plus any of the Enhanced V2 module blocks (main, shapeModule, emission, velocityOverLifetime, colorOverLifetime, sizeOverLifetime, rotationOverLifetime, noise, trails, renderer, collision).
      - For Enhanced V2, startColor MUST be an object {{"r":<num>,"g":<num>,"b":<num>,"a":<num>}}.
-     - If both Legacy and Enhanced V2 fields are provided for the same key, prefer the Enhanced V2 interpretation.
-       - For Enhanced V2, collisions are defined ONLY via the `collision` object.
-      Do not set collision anywhere else (no Lua hacks, no relay components yourself).
-      - If you need ParticleCollisionRelay behaviour, set `collision.sendCollisionMessages: true`
+     - Collisions are defined ONLY via the `collision` object.
+       Do not set collision anywhere else (no Lua hacks, no relay components yourself).
+     - If you need ParticleCollisionRelay behaviour, set `collision.sendCollisionMessages: true`
        and `collision.attachRelay: true` in the JSON; the C# applier will manage the component.
-       - `emission.bursts[*].repeatInterval` MUST be ≥ 0. Use `0` for a single-shot burst.
+     - `emission.bursts[*].repeatInterval` MUST be ≥ 0. Use `0` for a single-shot burst.
        The code clamps it safely; avoid negative values.
-       - Prefer `collision.collidesWithLayers: ["Default","GeneratedObject"]` for readability.
+     - Prefer `collision.collidesWithLayers: ["Default","GeneratedObject"]` for readability.
        If you provide `collidesWithMask`, omit `collidesWithLayers` (choose exactly one).
 
 output_schema: |
@@ -609,9 +656,7 @@ output_schema: |
     created_at: string   # ISO-8601 UTC
     lua_code: string
     particle_json:
-    - # EITHER a LegacyEffect OR an EnhancedV2Effect.
-        # LegacyEffect (simple fields)
-             # Enhanced V2 Effect
+    - # Enhanced V2 Effect only
       effectName: string
       main:
         gravityModifier: number
@@ -620,7 +665,7 @@ output_schema: |
         prewarm: boolean
         playOnAwake: boolean
         duration: number
-        startColor: { r: number, g: number, b: number, a: number }
+        startColor: {{ r: number, g: number, b: number, a: number }}
         startSize: number
         startSpeed: number
         startLifetime: number
@@ -631,7 +676,7 @@ output_schema: |
         angle: number
         radius: number
         arc: number
-        position: { x: number, y: number, z: number }
+        position: {{ x: number, y: number, z: number }}
       emission:
         rateOverTime: number
         rateOverDistance: number
@@ -643,24 +688,24 @@ output_schema: |
       velocityOverLifetime:
         enabled: boolean
         space: enum["Local","World"]
-        x: { mode: string, constant?: number, constantMin?: number, constantMax?: number, curve?: [{time:number,value:number}], curveMin?: [...], curveMax?: [...] }
-        y: { ...same as x... }
-        z: { ...same as x... }
+        x: {{ mode: string, constant?: number, constantMin?: number, constantMax?: number, curve?: [{{time:number,value:number}}], curveMin?: [...], curveMax?: [...] }}
+        y: {{ mode: string, constant?: number, constantMin?: number, constantMax?: number, curve?: [{{time:number,value:number}}], curveMin?: [...], curveMax?: [...] }}
+        z: {{ mode: string, constant?: number, constantMin?: number, constantMax?: number, curve?: [{{time:number,value:number}}], curveMin?: [...], curveMax?: [...] }}
         orbitalY: number
-        speedModifier: { ...MinMaxCurve... }
+        speedModifier: {{ mode: string, constant?: number, constantMin?: number, constantMax?: number, curve?: [{{time:number,value:number}}], curveMin?: [...], curveMax?: [...] }}
       colorOverLifetime:
         enabled: boolean
         gradient:
-          colorKeys: [{ time: number, color: { r:number,g:number,b:number,a:number } }]
-          alphaKeys: [{ time: number, alpha: number }]
+          colorKeys: [{{ time: number, color: {{ r:number,g:number,b:number,a:number }} }}]
+          alphaKeys: [{{ time: number, alpha: number }}]
       sizeOverLifetime:
         enabled: boolean
         separateAxes: boolean
-        size: { ...MinMaxCurve... }
+        size: {{ mode: string, constant?: number, constantMin?: number, constantMax?: number, curve?: [{{time:number,value:number}}], curveMin?: [...], curveMax?: [...] }}
       rotationOverLifetime:
         enabled: boolean
         separateAxes: boolean
-        z: { ...MinMaxCurve... }   # (extend with x/y if needed)
+        z: {{ mode: string, constant?: number, constantMin?: number, constantMax?: number, curve?: [{{time:number,value:number}}], curveMin?: [...], curveMax?: [...] }}   # (extend with x/y if needed)
       noise:
         enabled: boolean
         strength: number
@@ -699,16 +744,6 @@ output_schema: |
         enableDynamicColliders: boolean
         multiplyColliderForceByParticleSize: boolean
 
-      # Back-compat top-levels (optional; only if you’re not using main/emission above)
-      duration?: number
-      startColor?: { r:number,g:number,b:number,a:number }
-      startSize?: number
-      startSpeed?: number
-      emissionRate?: number
-      lifetime?: number
-      maxParticles?: number
-      shape?: enum["Cone","Sphere","Box"]
-
     param_ui_lua:
       - name: string
         type: string
@@ -736,9 +771,15 @@ validation_checklist_for_model:
   - trigger() exists.
   - No "..." or "…" in lua_code.
   - Any usage of other-object physics must use only the allowed getters (collisionProxy:GetRigidbodyProxy() or gameObjectProxy:GetRigidbodyProxy()).
-  - Each particle_json entry is EITHER Legacy or Enhanced V2; do not mix schemas inside one effect.
+  - Each particle_json entry uses Enhanced V2 schema only; do not emit legacy/simple fields.
   - For Enhanced V2, all MinMaxCurves must follow the required shape with {"mode":...}.
   - For Enhanced V2, startColor must be an object {{"r":n,"g":n,"b":n,"a":n}}.
   - Any effectName used in lua_code with activateEffect("...") exists in particle_json and is written in UPPERCASE_WITH_UNDERSCORES.
   - param_ui_particle keys only reference properties listed in “Particle Effects” (UI-safe keys).
   - Dropdowns for renderer.renderMode include only ["Billboard","StretchedBillboard","HorizontalBillboard","VerticalBillboard","Mesh"].
+  - If particle_category is Fluid-like (FIRE/SMOKE/WATER/FOAM/STEAM/MIST), collision.enabled MUST be false unless user explicitly requested collisions.
+  - If particle_category is Burst/Impulse (EXPLOSION/HIT_SPARK/DUST_PUFF/IMPACT), main.loop MUST be false and emission.bursts[*].repeatInterval MUST be 0.
+  - If particle_category is Trajectory/Emitter-on-move (BULLET_TRAIL/PROJECTILE_TRAIL/FOAM_JET/WATER_JET),
+    main.simulationSpace MUST be "World" and
+    collision.enabled/sendCollisionMessages/attachRelay MUST be true
+    unless the prompt explicitly disables them.

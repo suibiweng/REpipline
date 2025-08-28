@@ -28,3 +28,4 @@ objects
 shap_e
 __pycache__
 .history
+rag_index
